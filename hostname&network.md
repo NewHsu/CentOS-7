@@ -464,9 +464,12 @@
 * 如果你觉得这些命令和配置文件让你很烦，不能完成任务，那么你可以选择以下简便方式完成配置。
 
 * nmtui
-![png](./images/hostname/1.png)
+
+    ![png](./images/hostname/1.png)
+
 * nmtui-connection-editor
-![png](./images/hostname/2.png)
+
+    ![png](./images/hostname/2.png)
 
 ## 总结
 * 配置文件中，GATEWAY可以有多个，第一个是GATEWAY0，其次GATEWAY1，….尾号最大有效。
