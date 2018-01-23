@@ -2,15 +2,7 @@
 ## rsync介绍
 rsync（remote synchronize）是一个远程数据同步工具，可通过LAN/WAN快速同步多台主机间的文件。Rsync使用所谓的“Rsync算法”来使本地和远程两个主机之间的文件达到同步，这个算法只传送两个文件的不同部分，而不是每次都整份传送，因此速度相当快。
 
-rsync本来是用于替代rcp的一个工具，目前由rsync.samba.org维护，所以rsync.conf文件的格式类似于samba的主配置文件。Rsync可以通过rsh或ssh使用，也能以daemon模式去运行，在以daemon方式运行时Rsync server会打开一个873端口，等待客户端去连接。
-
-连接时，Rsync server会检查口令是否相符，若通过口令查核，则可以开始进行文件传输。
-第一次连通完成时，会把整份文件传输一次，以后则就只需进行增量备份。
-
-rsync支持大多数的类Unix系统，无论是Linux、Solaris还是BSD上都经过了良好的测试。此外，它在windows平台下也有相应的版本，如cwRsync和Sync2NAS等工具。
-
-><center>**以上介绍来自网络**</center >
-#### rsync特点
+### rsync特点
 1. 可以镜像保存整个目录树和文件系统；
 2. 可以很容易做到保持原来文件的权限、时间、软硬链接等；
 3. 无须特殊权限即可安装；
@@ -19,53 +11,59 @@ rsync支持大多数的类Unix系统，无论是Linux、Solaris还是BSD上都�
 6. 支持匿名传输
 
 ![png](./images/rsync/rsync1.png)
-#### Rsync算法介绍
+
+### Rsync算法介绍
 rsync是unix/linux下同步文件的一个高效软件，同步更新两处计算机的文件与目录，主要是利用查找文件中的不同块以减少数据传输。rsync利用由澳洲电脑程式师Andrew Tridgell发明的算法。
 
-在讲算法之前，我们有必要先了解一下rsync要解决的问题：
-1. A主机和B主机想要进行文件不同部分的同步，那么就要进行比对，但是2台主机之间文件要如何比对呢？。
-2. 如果软件的设计比对方案是传输一方文件到另一方进行比对，那么这与我们只想传输不同部的初衷相背。
-3. 有没有一种算法可以让俩边的文件之传输一些特殊的内容就比对比出俩边文件有什么不同？于是出现了rsync的算法。
-#### Rsync算法概况
-假设我们要将A文件同步到B文件
-1.	会把B文件平均切分成若干个小块，比如每块512个字节（最后一块会小于这个数），然后对每块计算两个checksum
+深入了解之前，先了解一下rsync要解决的问题：
+1. A主机和B主机想要进行文件不同部分的同步，但是如何做到A和B主机之间的文件不同部分的对比？
+2. A和B之间如果相互覆盖传输，将违背意愿和初衷？
+3. 可不可能根据一些特殊的内容信息完成文件对比？
+### Rsync算法概述（A->B传输文件）
+1.	首先会把B文件平均切分成若干个小块，比如每块512个字节，然后对每块计算两个checksum
+2.	同步目标端会把文件的一个checksum列表传给A主机，列表包含的主要内容有：rolling checksum(32bits)，md5 checksume(128bits)，文件块编号。
+3.	A主机收到了这个列表后，会对A文件做同样的checksum，然后和B的checksum表做对比，这样就很容易知道哪些文件块改变了
 
-		a) 一个是 rolling checksum，是弱checksum，32位的checksum，其使用的是Mark Adler发明的adler-32算法
-		b) 另一个是强checksum，128位的，现在用md5 hash算法
-		c) 为什么要2此checksum？因为弱的adler32算法碰撞概率太高了，强的checksum算法在早先的机器上计算太慢，所以先用弱计算，再用强计算。
-2.	同步目标端会把B文件的一个checksum列表传给A主机，列表里包括了三个主要内容，rolling checksum(32bits)，md5 checksume(128bits)，文件块编号。
-3.	A机器收到了这个列表后，会对A文件做同样的checksum，然后和B的checksum表做对比，这样就很容易知道哪些文件块改变了
-#### Rsync算法步骤
-1.	取A文件的第一个文件块（假设的是512个长度），也就是从A文件的第1个字节到第512个字节，做rolling checksum并存入hash表中查。
-2.	和B文件传过来的rolling checksum作比较，如果找到相同的，则发现在B文件中有潜在相同的文件块，接着比较 md5的checksum，因为rolling checksume太弱了，可能发生碰撞。所以还要算md5的128bits的checksum。如果rolling checksum和md5 checksum都相同，这说明在B文件中有相同的块，记录下B的相同文件编号。
-3.	如果A文件的rolling checksum 没有在hash table中找到，那就不用算md5 checksum了。表示这一块中有不同的信息。总之，只要rolling checksum 或 md5 checksum 其中有一个在B文件的checksum hash表中找不到匹配项，那么就会触发算法对A文件的rolling动作。算法会住后step 1个字节，取A文件中字节2-513的文件块要做checksum，go to (1) – ，这就是rolling checksum了吧。
-4.	这样，我们就可以找出A文件相邻两次匹配中的那些文本字符，这些就是我们要往同步目标端传的文件内容了。
-### Rsync配置
-#### Rsync安装
+### 经典使用场景
+1.	在本地两个目录间进行数据同步
+2.	本地与远程主机间完成数据同步
+3.	使用ssh通道进行数据同步
+4.	Update 更新
+5.	删除不存在于源目录的目的地文件
+6.	在同步时不在目的地创建新文件
+7.	显示执行进度
+8.	查看source 和 destination 间的区别
+9.	按指定模式进行同步
+10.	限制传输文件的大小
+11.	全拷贝
+
+## Rsync配置
+### Rsync安装
 	Linux系统已经默安装好了，无需额外安装，如果是AIX系统需要自安装rsync软件包。
-#### 匿名传输配置（范例）
+### 匿名传输配置（范例）
 ```
 #vim /etc/rsyncd.conf  (范例文本)
 uid = nobody     //运行rsync的用户
- gid = nobody     //运行rsync的组
- use chroot = yes   //用户禁锢目录
- max connections = 4    //最大链接数
- pid file = /var/run/rsyncd.pid   
- exclude = lost+found/    //排除文件夹内的目录
- transfer logging = yes    //传输记录
- timeout = 900          //传输超时
- ignore nonreadable = yes    
+gid = nobody     //运行rsync的组
+use chroot = yes   //用户禁锢目录
+max connections = 4    //最大链接数
+pid file = /var/run/rsyncd.pid   
+exclude = lost+found/    //排除文件夹内的目录
+transfer logging = yes    //传输记录
+timeout = 900          //传输超时
+ignore nonreadable = yes    
 log file=/var/log/rsyncd.log //日志位置
- dont compress   = *.gz *.tgz *.zip *.z *.Z *.rpm *.deb *.bz2  //传输不压缩的文件
+dont compress   = *.gz *.tgz *.zip *.z *.Z *.rpm *.deb *.bz2  //传输不压缩的文件
 
- [ftp]     //这里是认证的模块名，在client端需要指定
-        path = /home/ftp       //需要做镜像的目录,不可缺少！
-        comment = ftp export area    //这个模块的注释信息
-		ignore errors                                   //可以忽略一些无关的IO错误
-read only = yes                              // 只读，read only=no 可写             
+[ftp]     //这里是认证的模块名，在client端需要指定
+path = /home/ftp       //需要做镜像的目录,不可缺少！
+comment = ftp export area    //这个模块的注释信息
+ignore errors              //可以忽略一些无关的IO错误
+read only = yes           // 只读，read only=no 可写             
 #hosts allow = 192.168.1.1,10.10.10.10      //允许主机
 #hosts deny = 0.0.0.0/0                  //禁止主机
 ```
+
 **启动rsync server**
 ```
 #rsync --daemon /etc/rsyncd.conf
@@ -92,51 +90,41 @@ yum.log
 sent 51253 bytes  received 84 bytes  4889.24 bytes/sec
 total size is 50928  speedup is 0.99
 ```
-**rsync客户端参数解释** 
-|参数|解释|
-|--|:--|
-|c|   |
-|r|  |
-|p|  |
-|o|  |
-|g|  |
-|P|  |
-|--delete|  |
-|z|  |
-|v|  |
 
 **认证传输配置**
 ```
 #vim /etc/rsyncd.conf  (范例文本)
 uid = nobody     //运行rsync的用户
- gid = nobody     //运行rsync的组
- use chroot = yes   //用户禁锢目录
- max connections = 4    //最大链接数
- pid file = /var/run/rsyncd.pid   
- exclude = lost+found/    //排除文件夹内的目录
- transfer logging = yes    //传输记录
- timeout = 900          //传输超时
- ignore nonreadable = yes    
+gid = nobody     //运行rsync的组
+use chroot = yes   //用户禁锢目录
+max connections = 4    //最大链接数
+pid file = /var/run/rsyncd.pid   
+exclude = lost+found/    //排除文件夹内的目录
+transfer logging = yes    //传输记录
+timeout = 900          //传输超时
+ignore nonreadable = yes    
 log file=/var/log/rsyncd.log //日志位置
- dont compress   = *.gz *.tgz *.zip *.z *.Z *.rpm *.deb *.bz2  //传输不压缩的文件
+dont compress   = *.gz *.tgz *.zip *.z *.Z *.rpm *.deb *.bz2  //传输不压缩的文件
 
- [ftp]     //这里是认证的模块名，在client端需要指定
-        path = /home/ftp       //需要做镜像的目录,不可缺少！
-        comment = ftp export area    //这个模块的注释信息
-		ignore errors                                   //可以忽略一些无关的IO错误
+[ftp]     //这里是认证的模块名，在client端需要指定
+path = /home/ftp       //需要做镜像的目录,不可缺少！
+comment = ftp export area    //这个模块的注释信息
+ignore errors                                   //可以忽略一些无关的IO错误
 read only = yes                              // 只读，read only=no 可写       
 auth users = xcl        //认证的用户名，此用户与系统无关
 secrets file = /etc/rsync.pas           //密码和用户名对比表，密码文件自己生成
 #hosts allow = 192.168.1.1,10.10.10.10      //允许主机
 #hosts deny = 0.0.0.0/0                  //禁止主机
 ```
+
 **制作密码文件**
-```
-配置rsync密码（在上边的配置文件中已经写好路径） rsync.pas（名字随便写，只要和上边配置文件里的一致即可），格式(一行一个用户). 
-服务器端密码问价格式为：xcl:password  （账户：密码）
-客户端密码文件格式为： password （只写密码即可）
-密码文件权限为600， chmod 600 /etc/rsync.pas
-```
+* 配置rsync密码（在上边的配置文件中已经写好路径） rsync.pas（名字随便写，只要和上边配置文件里的一致即可），格式(一行一个用户). 
+
+    服务器端密码问价格式为：xcl:password  （账户：密码）
+    客户端密码文件格式为： password （只写密码即可）
+    密码文件权限为600， chmod 600 /etc/rsync.pas
+
+
 **测试传输数据**
 ```
 [root@localhost var]# rsync -crpogP ./log/messages  xcl@192.168.255.128::ftp  --password-file=/etc/rsync.pas
@@ -151,23 +139,75 @@ total size is 377625  speedup is 1.00
 ***查看传输日志***
 如果上面定义了log的位置，可以到log中查看详细的rsync的传输记录。
 
-### 经典使用场景
-1.	在本地两个目录间进行数据同步
-2.	本地与远程主机间完成数据同步
-3.	使用ssh通道进行数据同步
-4.	Update 更新
-5.	删除不存在于源目录的目的地文件
-6.	在同步时不在目的地创建新文件
-7.	显示执行进度
-8.	查看source 和 destination 间的区别
-9.	按指定模式进行同步
-10.	限制传输文件的大小
-11.	全拷贝
+
 
 ### 总结
-* 我一般使用rsync在我生产的主机间去同步或者传输数据，至于认证和不认证要看特殊的需求，但是必须限制主机传输。
-* 有人问我要怎么调用rsync？是不是每次都要使用shell去调用，你可以写道程序中调用，也可以使用crontab调用，很多方式，只要你想使用它传文件或者做同步。
-* 并不是说FTP就不用了，我在备份传输的时候还是会使用ftp的，例如生产的数据库备份，每天都会传输到固定的主机，这里我使用的是FTP。
-* 将传输分为2种：
-	1. 生产主机间数据同步和文件传输（rsync）
-	2. 数据备份上传下载 （FTP）
+* 生产系统主机间数据同步或者传输数据，至于认证和不认证要看特殊的需求，但是必须限制可以链接传输的主机。
+* 怎么调用rsync？是不是每次都要使用shell命令去调用？你可以写道程序中调用，也可以使用crontab调用，很多方式。
+* FTP被淘汰了？并不是说FTP淘汰了，而是生产环境中处于安全考虑以及监管的一些要求，会将FTP替换成rsync，毕竟FTP漏洞太多，而且还是账户和密码明传输。
+* 什么时候用？任何时候！只要你想！
+
+## 常用rsync客户端参数解释
+|参数|解释|
+|:--|:--|
+|-v|--verbose 详细模式输出。
+|-q|--quiet 精简输出模式。
+|-c|--checksum 打开校验开关，强制对文件传输进行校验。
+|-a|--archive 归档模式，表示以递归方式传输文件，并保持所有文件属性，等于-rlptgoD。
+|-r|--recursive 对子目录以递归模式处理。
+|-R|--relative 使用相对路径信息。
+|-b|--backup 创建备份，也就是对于目的已经存在有同样的文件名时，将老的文件重新命名为~filename。可以使用--suffix选项来指定不同的备份文件前缀。
+|--backup-dir| 将备份文件(如~filename)存放在在目录下。
+|-suffix=SUFFIX| 定义备份文件前缀。
+|-u|--update 仅仅进行更新，也就是跳过所有已经存在于DST，并且文件时间晚于要备份的文件，不覆盖更新的文件。
+|-l|--links 保留软链结。
+|-L|--copy-links 想对待常规文件一样处理软链结。
+|--copy-unsafe-links| 仅仅拷贝指向SRC路径目录树以外的链结。
+|--safe-links| 忽略指向SRC路径目录树以外的链结。
+|-H|--hard-links 保留硬链结。
+|-p|--perms 保持文件权限。
+|-o|--owner 保持文件属主信息。
+|-g|--group 保持文件属组信息。
+|-D|--devices 保持设备文件信息。
+|-t|--times 保持文件时间信息。
+|-S|--sparse 对稀疏文件进行特殊处理以节省DST的空间。
+|-n|--dry-run现实哪些文件将被传输。
+|-w|--whole-file 拷贝文件，不进行增量检测。
+|-x|--one-file-system 不要跨越文件系统边界。
+|-B|--block-size=SIZE 检验算法使用的块尺寸，默认是700字节。
+|-e|--rsh=command 指定使用rsh、ssh方式进行数据同步。
+|--rsync-path=PATH| 指定远程服务器上的rsync命令所在路径信息。
+|-C|--cvs-exclude 使用和CVS一样的方法自动忽略文件，用来排除那些不希望传输的文件。
+|--existing| 仅仅更新那些已经存在于DST的文件，而不备份那些新创建的文件。
+|--delete| 删除那些DST中SRC没有的文件。
+|--delete-excluded| 同样删除接收端那些被该选项指定排除的文件。
+|--delete-after| 传输结束以后再删除。
+|--ignore-errors| 及时出现IO错误也进行删除。
+|--max-delete=NUM| 最多删除NUM个文件。
+|--partial| 保留那些因故没有完全传输的文件，以是加快随后的再次传输。
+|--force| 强制删除目录，即使不为空。
+|--numeric-ids| 不将数字的用户和组id匹配为用户名和组名。
+|--timeout=time| ip超时时间，单位为秒。
+|-I|--ignore-times 不跳过那些有同样的时间和长度的文件。
+|--size-only| 当决定是否要备份文件时，仅仅察看文件大小而不考虑文件时间。
+|--modify-window=NUM| 决定文件是否时间相同时使用的时间戳窗口，默认为0。
+|-T| --temp-dir=DIR 在DIR中创建临时文件。
+|--compare-dest=DIR |同样比较DIR中的文件来决定是否需要备份。
+|-P| 等同于 --partial。
+|--progress| 显示备份过程。
+|-z|--compress 对备份的文件在传输时进行压缩处理。
+|--exclude=PATTERN|指定排除不需要传输的文件模式。
+|--include=PATTERN |指定不排除而需要传输的文件模式。
+|--exclude-from=FILE |排除FILE中指定模式的文件。
+|--include-from=FILE |不排除FILE指定模式匹配的文件。
+|--version |打印版本信息。
+|--address |绑定到特定的地址。
+|--config=FILE |指定其他的配置文件，不使用默认的rsyncd.conf文件。
+|--port=PORT| 指定其他的rsync服务端口。
+|--blocking-io |对远程shell使用阻塞IO。
+|--stats |给出某些文件的传输状态。
+|--progress| 在传输时现实传输过程。
+|--log-format=formAT |指定日志文件格式。
+|--password-file=FILE |从FILE中得到密码。
+|--bwlimit=KBPS| 限制I/O带宽，KBytes per second。
+|-h|--help 显示帮助信息。
