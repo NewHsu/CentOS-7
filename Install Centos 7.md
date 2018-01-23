@@ -1,5 +1,5 @@
-## 安装 CentOS 7
-### CentOS 7介绍
+# 安装 CentOS 7
+## CentOS 7介绍
 CentOS（Community Enterprise Operating System，中文意思是：社区企业操作系统）是Linux发行版之一，它是来自于Red Hat Enterprise Linux依照开放源代码规定释出的源代码所编译而成。由于出自同样的源代码，因此有些要求高度稳定性的服务器以CentOS替代商业版的Red Hat Enterprise Linux使用。两者的不同，在于CentOS并不包含封闭源代码软件。
 
 CentOS 是RHEL（Red Hat Enterprise Linux）源代码再编译的产物，而且在RHEL的基础上修正了不少已知的 Bug ，相对于其他 Linux 发行版，其稳定性值得信赖。
@@ -16,13 +16,15 @@ CentOS在2014初，宣布加入Red Hat。
 2. 红帽提供构建系统和初始内容分发资源的赞助
 3. 一些开发的资源包括源码的获取将更加容易
 4. 避免了原来和红帽上一些法律的问题
-### 本章所用软件
+
+## 本章所用软件
 	1：Virtual Box
 	https://www.virtualbox.org/
 	2：CentOS 7 光盘镜像
 	https://www.centos.org/download/
+
 ## 安装步骤（废话少说，开始干活！）
-##### 创建虚拟机
+### 创建虚拟机
 （已经有基础的同学可以跳过该部分~没基础的话，一步一步完成吧）
 1)	打开VirtualBox虚拟机软件，选择新建虚拟机，然后输入如下内容
 
@@ -42,6 +44,7 @@ CentOS在2014初，宣布加入Red Hat。
 9)	设置光盘镜像路径后，使用主界面绿色箭头开启虚拟机即可
 
 >到此，虚拟机新建完成，更多虚拟机详细内容不在这里废话，也不隶属于本书范围，有兴趣的同学可以参考VirtualBox方面的教材。
+
 ## 安装CentOS7
 终于可以正式安装CentOS 7 了，下面我们一起来看看安装步骤和一些注意事项。
 1)	虚拟机开启以后，我们会进入主引导安装界面，（特别想吐槽！~忍下来）选项以白色的光标为主。（眼神不好的多留意），``选择安装选择【Install CentOS 7】``
@@ -91,7 +94,7 @@ CentOS在2014初，宣布加入Red Hat。
 图形界面固然好用，但是实际生产环境中我们往往是直接使用文本界面操作，很少用到图形界面来进行配置，所以重点要学习一下文本界面。
 
 Linux默认打开7个屏幕，编号为tty1~tty7。X-window启动后，占用的是tty7号屏幕，tty1~tty6仍为字符界面屏幕。这就意味着你可以同时拥有X-window加上6个Console字符操作界面！
-#### 实验环境切换键位为：
+### 实验环境切换键位为：
 Alt+Ctrl+F（1~6），进入文本界面
 
 Alt+Ctrl+F7 进入X-window界面

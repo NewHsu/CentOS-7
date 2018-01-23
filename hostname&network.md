@@ -1,11 +1,11 @@
-## Hostname & NetWork
-### 基础知识
+# Hostname & NetWork
+## 基础知识
 * NetworkManager
     - 现时，几乎所有主机都要进行联网和外界通讯，所以在使用Linux的过程中，配置网络是使用人员基本的技能。但是CentOS6和CentOS7的网络配置差距还是有点大，在CentOS7 中采用了NetworkManager 管理网络，这是动态控制及配置网络的守护进程，它用于保持当前网络设备及连接处于工作状态，同时也支持传统的 ifcfg 类型的配置文件。
     - NetworkManager 可以用于以下类型的连接：Ethernet，VLANS，Bridges，Bonds，Teams等等。
     - Hostname是每个主机的独立标识，尤其是在同一个局域网内，主机名切记不要发生重复，尽可能的使用唯一的标识没标志每一个独立的系统。
     - 大规模的生产环境中也会使用主机名明规范，区分不同区域和不同业务。
-### Network指令
+## Network指令
 * 通常使用令行工具 nmcli 来控制 NetworkManager。
 
         nmcli用法，可以使用TAB键补全
@@ -138,7 +138,7 @@
         参数：l 标识监听，t标识TCP，u标识udp
         也可以实用netstat –an 来进行查看
 
-### Nmcli命令表
+## Nmcli命令表
 
 |命令|用途|
 |:---|:----|
