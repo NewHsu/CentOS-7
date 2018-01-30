@@ -47,7 +47,7 @@
 ### Pacemaker集群类型
 #### 主备模式
 
-![](./images/Cluster/ab.png)
+![png](./images/Cluster/ab.png)
 ![png](./images/syslog/syslog-12.png)
 
 >主备模式是生产环境的经典架构，但是可惜的是会浪费一台主机在那随时待命，白白浪费资源，但是对于关键业务是必须有这样的保障！当主机ACTIVE出现问题，集群资源会切换到Passive主机去运行。
