@@ -86,12 +86,12 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
 
 5.	主面板样式，注意核对后面的选项
 
-![](./images/Cluster/main.png)
+![](./images/Cluster7/main.png)
 
 ## 创建新集群
 1.	创建集群
 
-![](./images/Cluster/createnewcluster.png)
+![](./images/Cluster7/createnewcluster.png)
 
 选择Create New，然后设置Cluster Nmae，添加节点主机名（节点主机名需要互相在/etc/hosts中进行相互映射，切记/etc/hosts添加的是私网IP） 集群内部通讯走私有网络，切勿和对外服务IP混杂在一起。
 
@@ -127,7 +127,7 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
 
 3.	确认集群状态
 
-![](./images/Cluster/Clusterstartinfo.png)
+![](./images/Cluster7/Clusterstartinfo.png)
 
 注意所有红色标记内的状态全部为Running，这里有个小提示，初始化完成后Pacemaker Connected 可能会有1分钟左右的未连接状态，稍微等待即可。
 
@@ -164,7 +164,7 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
 ## 添加resource（IP）
 1.	添加服务IP资源（VIP）
 
-![](./images/Cluster/ipresource.png)
+![](./images/Cluster7/ipresource.png)
 
 点击面板resources ，点击Add，Class选择OCF，Type选择IPaddr，resource ID 处输入resource 资源名称，最后写入IP地址（VIP，要与公网IP在同一个网段），点击create resource。
 
@@ -215,7 +215,7 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
         inactive          '/dev/hadb/dbdata' [4.00 GiB] inherit
 6.	添加LVM资源
 
-![](./images/Cluster/lvm.png)
+![](./images/Cluster7/lvm.png)
 
 >指令创建：
 
@@ -224,7 +224,7 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
 
 ## 添加resource (Filssystem)
 
-![](./images/Cluster/filesystem.png)
+![](./images/Cluster7/filesystem.png)
 
 > 别忘记双侧主机先创建挂载点”mkdir /dbdata”
 
@@ -242,7 +242,7 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
     3：filesystem 资源必须在lvm资源激活后才能挂载
     4：启动脚本的资源最后
 
-![](./images/Cluster/group.png)
+![](./images/Cluster7/group.png)
 
 >指令查看,使用pcs status 查看资源资源顺序是否正确
 
@@ -291,7 +291,7 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
 
 图形界面选择这里输入即可：
 
-![](./images/Cluster/mate.png)
+![](./images/Cluster7/mate.png)
 
 这个时候你在恢复好网络 ，然后断开网互相切换试试看，记得要等待30秒哦。
 

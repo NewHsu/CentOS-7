@@ -188,7 +188,7 @@
 
 3.	添加resource资源，在web页面添加（脚本在/etc/init.d/）
 
-![](./images/Cluster/db2startstop.png)
+![](./images/Cluster7/db2startstop.png)
 
 >指令添加：包含failure-timeout
         
