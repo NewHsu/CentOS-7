@@ -121,7 +121,6 @@ KVM是Kernel-based Virtual Machine的简写，是一个开源的系统虚拟化�
 * 添加成功后
 
 ![](./images/KVM/4.png)
-![](./images/KVM/1.png)
 
 ### Nfs share 设置
 * 修改配置并挂载
