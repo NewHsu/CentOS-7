@@ -21,16 +21,13 @@
 * 提供消息和集群关系功能的集群核心基础组件(标红的部分)
 * 集群无关的组件(蓝色的部分)。在Pacemaker架构中，这部分不仅包含有怎么样启动，关闭，监控资源的脚本，而且还有一个本地的守护进程来消除这些脚本实现的(采用的)不同标准之间的差异
 * 大脑(绿色部分)处理并响应来自集群和资源的事件(比如节点的离开和加入，资源的失效) ，以及管理员对配置文件的修改。在对所有这些事件的响应中，Pacemaker会计算集群理想的状态，并规划一个途径来实现它。
-<center>
-    <img src="images/cluster/1-1.png">
-</center>
 
+![](./images/Cluster/1-1.png)
 
 ### Pacemaker 层次
 * 当与Corosync集成时，Pacemaker也支持常见的开源集群文件系统，根据来着集群文件系统社区的最新标准，他们用一个通用的分布式锁控制器，它靠Corosync通信并且用Pacemaker管理成员关系(哪些节点是开启或关闭的)和隔离服务。
-<center>
-    <img src="./images/cluster 7/1-2.png">
-</center>
+
+![](./images/Cluster/1-2.png)
 
 ### Pacemaker内部组成
 1. Pacemaker本身由四个关键组件组成:
@@ -38,9 +35,8 @@
 3. CRMd (aka. 集群资源管理守护进程)
 4. PEngine (aka. PE or 策略引擎)
 5. STONITHd
-<center>
-    <img src="./images/cluster 7/1-3.png">
-</center>
+6. 
+![](./images/Cluster/1-3.png)
 
 * CIB用XML来展示集群的配置和资源的当前状态。CIB的内容会自动地在集群之间同步，并被PEngine用来来计算集群的理想状态和如何达到这个理想状态。
 * 这个指令列表然后会被交给DC(指定协调者)。Pacemaker会推举一个CRMd实例作为master来集中做出所有决策。如果推举的CRMd繁忙中，或者这个节点不够稳定... 一个新的master会马上被推举出来。
@@ -50,23 +46,20 @@
 
 ### Pacemaker集群类型
 #### 主备模式
-<center>
-    <img src="./images/cluster 7/ab.png">
-</center>
+
+![](./images/Cluster/ab.png)
 
 >主备模式是生产环境的经典架构，但是可惜的是会浪费一台主机在那随时待命，白白浪费资源，但是对于关键业务是必须有这样的保障！当主机ACTIVE出现问题，集群资源会切换到Passive主机去运行。
 
 #### 多节点模式 N+1
-<center>
-    <img src="./images/cluster 7/sharef.png">
-</center>
+
+![](./images/Cluster/sharef.png)
 
 > 支持多节点集群，可以很多服务共享一个备份节点，大大节省资源，生产系统会将一个项目中需要集群的3个服务跑在4个节点的集群上，如果谁有问题，谁就先迁移到备份节点上运行，等主机恢复了，然后在切换回来或者将该主机作为其他主机的备份资源使用
 
 #### Actice/Active  N to N
-<center>
-    <img src="./images/cluster 7/aa.png">
-</center>
+
+![](./images/Cluster/aa.png)
 
 >使用共享存储配合集群文件系统OCFS或者GFS2可以同时运行多个服务，每个节点都可以用于互相切换。也可以同时启动分散一下工作量
 

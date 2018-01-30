@@ -187,9 +187,9 @@
         chmod 755 /etc/init.d/db2p.sh
 
 3.	添加resource资源，在web页面添加（脚本在/etc/init.d/）
-  <center>
-    <img src="./images/cluster 7/db2startstop.PNG">
-</center>
+
+![](./images/Cluster/db2startstop.png)
+
 >指令添加：包含failure-timeout
         
     #pcs resource create dbstartstop lsb:db2.sh

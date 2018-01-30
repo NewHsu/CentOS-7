@@ -85,15 +85,13 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
 >需要注意的是，有证书问题，我使用的是FireFox可以添加例外，如果使用其它浏览器在Windows下需要将证书安装后才可访问成功。
 
 5.	主面板样式，注意核对后面的选项
-<center>
-    <img src="./images/cluster 7/main.png">
-</center>
+
+![](./images/Cluster/main.png)
 
 ## 创建新集群
 1.	创建集群
-<center>
-    <img src="./images/cluster 7/create new cluster.PNG">
-</center>
+
+![](./images/Cluster/createnewcluster.png)
 
 选择Create New，然后设置Cluster Nmae，添加节点主机名（节点主机名需要互相在/etc/hosts中进行相互映射，切记/etc/hosts添加的是私网IP） 集群内部通讯走私有网络，切勿和对外服务IP混杂在一起。
 
@@ -128,9 +126,9 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
         pcs resource defaults migration-threshold=1
 
 3.	确认集群状态
-<center>
-    <img src="./images/cluster 7/Cluster start info.PNG">
-</center>
+
+![](./images/Cluster/Clusterstartinfo.png)
+
 注意所有红色标记内的状态全部为Running，这里有个小提示，初始化完成后Pacemaker Connected 可能会有1分钟左右的未连接状态，稍微等待即可。
 
 >指令确认：
@@ -165,9 +163,9 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
 
 ## 添加resource（IP）
 1.	添加服务IP资源（VIP）
- <center>
-    <img src="./images/cluster 7/ip resource.PNG">
-</center>
+
+![](./images/Cluster/ipresource.png)
+
 点击面板resources ，点击Add，Class选择OCF，Type选择IPaddr，resource ID 处输入resource 资源名称，最后写入IP地址（VIP，要与公网IP在同一个网段），点击create resource。
 
 >指令创建：
@@ -216,9 +214,8 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
         [root@ywdb2 ~]# lvscan 
         inactive          '/dev/hadb/dbdata' [4.00 GiB] inherit
 6.	添加LVM资源
- <center>
-    <img src="./images/cluster 7/lvm.PNG">
-</center>
+
+![](./images/Cluster/lvm.png)
 
 >指令创建：
 
@@ -226,9 +223,8 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
     Lvm 小写为Resource ID ，大写为资源类型。
 
 ## 添加resource (Filssystem)
- <center>
-    <img src="./images/cluster 7/filesystem.PNG">
-</center>
+
+![](./images/Cluster/filesystem.png)
 
 > 别忘记双侧主机先创建挂载点”mkdir /dbdata”
 
@@ -245,9 +241,8 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
     2：lvm的资源，vg资源激活
     3：filesystem 资源必须在lvm资源激活后才能挂载
     4：启动脚本的资源最后
- <center>
-    <img src="./images/cluster 7/group.PNG">
-</center>
+
+![](./images/Cluster/group.png)
 
 >指令查看,使用pcs status 查看资源资源顺序是否正确
 
@@ -295,9 +290,9 @@ CentOS 6 上支持的RHCS组件包主要有cman（心跳管理）、luci+ricci�
     #pcs resource meta dbfs failure-timeout=30
 
 图形界面选择这里输入即可：
-<center>
-    <img src="./images/cluster 7/mate.PNG">
-</center>
+
+![](./images/Cluster/mate.png)
+
 这个时候你在恢复好网络 ，然后断开网互相切换试试看，记得要等待30秒哦。
 
 2.	如何解决回切问题
