@@ -256,6 +256,7 @@
         [root@LVM-Host ~]# vgremove Book
         Volume group "Book" successfully removed
 4. 删除PV
+
         [root@LVM-Host ~]# pvremove /dev/sd{b,c,d}1
         Labels on physical volume "/dev/sdb1" successfully wiped.
         Labels on physical volume "/dev/sdc1" successfully wiped.
