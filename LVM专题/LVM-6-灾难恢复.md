@@ -99,4 +99,14 @@ LV卷的文件系统和普通的分区文件系统环境并没有什么区别，
     建议备份/etc/lvm 目录，并且保存在其他归档主机，如果lvm有改动，及时更新备份。
     备份命令可以使用：vgcfgbackup 也可以使用 lvmdump，推荐使用lvmdump。
 
+## 总结
+* 如果需要移除缺失的物理卷，可以使用LVM 提供 vgreduce --removemissing”来删除卷组中所有缺失的物理卷。
+* 如果是root分区损坏，一定要紧resuce模式进行抢救，说不定有意外的惊喜。
+* 如果要在2个系统间移动LVM，一定要遵守以下步骤（不常用）：
+        *  停止卷组工作：vgchange -an /dev/Book
+        *  导出lvm信息：vgexport /dev/Book
+        *  将磁盘移动到其他系统
+        *  扫描 PV：pvscan
+        *  导入 VG：vgimport /dev/Book
+        *  激活卷组：vgchange – a n /dev/Book
 
