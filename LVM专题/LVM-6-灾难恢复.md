@@ -88,6 +88,7 @@ LV卷的文件系统和普通的分区文件系统环境并没有什么区别，
         可以查看到以前的数据，并且写入新数据成功。
 
 5. 尝试进行恢复 （替换磁盘修复）
+
         [root@lvm-host /]# pvcreate /dev/sde1
         [root@lvm-host test]# pvcreate -ff --uuid qtE2Lf-Uj1W-HoWf-lMsy-5CFK-lhpa-Nw1JEq --restorefile /etc/lvm/backup/Book /dev/sde1
         使用sde1替换sdb1，然后还原vg信息....
