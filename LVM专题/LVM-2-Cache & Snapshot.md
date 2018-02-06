@@ -268,5 +268,14 @@ LVM的DM-cache原生的支持使得LVM层面的加速得到了可能，大大提
         [root@lvm-host ~]# mount /dev/BooK/lvtest-sanpshot /snapshot/
         mount: /dev/BooK/lvtest-sanpshot: can't read superblock
 
+>重要：要自动扩展快照，可以通过修改配置文件来实现。对于手动扩展，我们可以使用lvextend。
+        
+        使用vim编辑器打开lvm配置文件。
+        # vim /etc/lvm/lvm.conf
+        搜索autoextend。
+        snapshot_autoextend_threshold = 100
+        snapshot_autoextend_percent = 20
+>修改此处的100为80，这样达到80%使用的时候，将自动扩展20%，这样，就可以自动扩容了。这将把快照从超载导致下线事故中拯救出来.
+
 ## 总结
-	产环境中，快照通常是用于数据某一时间点的备份，用完之后删除快照即可，至于回溯很少使用。
+产环境中，快照通常是用于数据某一时间点的备份，用完之后删除快照即可，至于回溯很少使用。
