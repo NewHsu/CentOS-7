@@ -1,318 +1,242 @@
-# PCS -- DB2 + web
-## 介绍
-说句实话很多人问我为什么不写WEB的HA，现在都应用层面大部分都已经使用负载均衡的模式在做了，很少会用HA，但是数据库的HA模式确实用的非常之多，所以这里举例也是用数据库，当然，无论DB2还是mysql还是其它数据库他们也都有自己的HA方法，具体用哪个看你自己了，我更习惯用系统的HA模式。
-
-## DB2 HA 配置
-
-### ywdb2节点安装配置DB2
-安装DB2软件的时候一定要注意，俩边主机都要安装在相同的目录，并且双侧主机的账户UID和GID都要一样，如果出现偏差可能就不能进行切换了。
->以下所有操作都在集群存活的主机上执行: 以下操作主机均为ywdb2，查看cluster基础环境配置
-
-    [root@ywdb2 /]# pcs status
-    ……………………….
-    Resource Group: db2group
-        VIP	(ocf::heartbeat:IPaddr2):	Started ywdb2 
-        lvm	(ocf::heartbeat:LVM):	Started ywdb2 
-        dbfs	(ocf::heartbeat:Filesystem):	Started ywdb2
-
-1.	上传DB2安装软件到HA主机并在双侧主机进行解压：
-
-        #tar xvf v9.7fp3_25384_linuxx64_server.tar.gz
-
-2.	创建DB2所需账户
-
-        # groupadd db2grp
-        # groupadd db2fgrp 
-        # groupadd dasadm 
-        # useradd -m -g db2grp -d /home/db2inst -s /bin/bash db2inst
-        # useradd -m -g db2fgrp -d /home/db2fenc -s /bin/bash db2fenc
-        # useradd -m -g dasadm -d /home/dasusr -s /bin/bash dasusr
-
-3.	为DB2账户设置密码
-
-        # passwd db2inst 
-        New password:db2inst 
-        Re-enter new password:db2inst Password changed 
-        # passwd db2fenc
-        …… 
-        # passwd dasusr
-        ……
-
-4.	进行安装
-
-        #cd ~/server
-        #./db2_install
-        #默认安装路径
-        #输入ESE
-
-5.	DB2 License
-
-        #cd /opt/ibm/db2/V9.7/adm
-        # ./db2licm –a /mnt/db2install/db2/license/db2ese_t.lic  
-        //如果没有License 授权可以跳过该步骤
-
-6.	创建DAS和数据库实例
-
-        # cd /opt/ibm/db2/V9.7/instance
-        # ./dascrt -u dasusr
-        # ./db2icrt -p 50001 -u db2fenc db2inst
-7.	更改DB2 库文件默认目录
-
-        #su – db2inst
-        $db2 get dbm cfg  //获得当前DB2配置
-        ……..
-        Default database path                       (DFTDBPATH) = /home/db2inst
-        ……….
-
-        $ db2 update dbm cfg using DFTDBPATH /dbdata    //更改到共享存储
-        ……….
-        Default database path                       (DFTDBPATH) = /dbdata
-        ………
-8.	设置共享存储权限
         
-        #chown -R db2inst.db2grp /dbdata
-9.	创建范例数据库
+# PCS-3 故障模拟和恢复
+* 本章节重点是以模拟实际生产环境可能出现的常见故障为实例对PCS的集群进行修复调整和加固，以及常见的问题分析和处理.
+* 本章接上个章节的实验环境。
+## 1. 断VIP网络切换测试
+1.	VIP 离线测试
+断开外网IP（即VIP网络）不是心跳网络，一定要搞清楚！！亲~现在没有fence设备，断掉心跳就会脑裂！你问我什么是脑裂,什么是fence？后面我详细告诉你！
+正常状态：
+    
+        [root@node2 ~]# pcs status
+        Cluster name: TestCluster
+        ......
+        Resource Group: TestGroup
+        VIP	(ocf::heartbeat:IPaddr2):	Started node1
+        TestLVM	(ocf::heartbeat:LVM):	Started node1
+        datafile	(ocf::heartbeat:Filesystem):	Started node1
+        ......
 
-        #su – db2inst
-        $db2sampl
-        Starting the DB2 instance...
-        Creating database "SAMPLE"...
-        Connecting to database "SAMPLE"...
-        Creating tables and data in schema "DB2INST"...
-        Creating tables with XML columns and XML data in schema "DB2INST"...
-        Stopping the DB2 instance...
-
-        'db2sampl' processing complete.
-10.	查看并连接范例数据库
-
-        $ db2 list db directory
-        …….
-        Database 1 entry:
-
-        Database alias                       = SAMPLE
-        Database name                        = SAMPLE
-        Local database directory             = /dbdata
-        Database release level               = d.00
-        Comment                              =
-        Directory entry type                 = Indirect
-        Catalog database partition number    = 0
-        …….
-
-        $db2start
-
-        $db2 connect to sample
-        ……
-        Database server        = DB2/LINUXX8664 9.7.3
-        SQL authorization ID   = DB2INST
-        Local database alias   = SAMPLE
-
-### ywdb1节点安装配置DB2
-1.	迁移集群资源组db2group到ywdb1
-
-        # pcs constraint location db2group  prefers ywdb1=INFINITY  
-        //迁移资源组 
-        pcs constraint show
-        //查看有哪些任务在进行
-        # pcs constraint remove location-db2group-ywdb1-INFINITY
-        //迁移完成后一定不要忘记把迁移策略取消，把管理权交还给集群
-2.	安装配置DB2
-
-        方法如同ywdb2，执行1到8步
-
-3.	将数据库catalog到ywdb1
-
-        #su – db2inst
-        $ db2 catalog  db sample on /dbdata
-4.	启动数据库并进行链接测试
-
-        #su – db2inst
-        $db2start
-        $db2 connect to sample
-        ……..
-        Database server        = DB2/LINUXX8664 9.7.3
-        SQL authorization ID   = DB2INST
-        Local database alias   = SAMPLE
-
-### DB2加入集群
-1.	加入集群之前，先关闭双侧主机DB2，让集群去控制DB2启动和停止，不要让DB2随系统启动
-
-        #su – db2inst
-        $db2stop force
-	
-2.	编写DB2启动和停止脚本要附带检查状态
-
-        //我的脚本写的比较简单，你可以继续完善
-        //脚本一定要放到/etc/init.d/目录，并且权限为755
-        #!/bin/sh
-        # chkconfig: 2345 99 01
-        # processname:IBMDB2
-        # description:db2 start
+断开VIP网络后：
         
-        DB2_HOME="/home/db2inst/sqllib" 
-        DB2_OWNER="db2inst" 
-        
-        case "$1" in
-        start )
-        echo -n "starting IBM db2"
-        su - $DB2_OWNER -c $DB2_HOME/adm/db2start
-        touch /var/lock/db2
-        echo "ok"
-        RETVAL=$?
-        ;;
+        //这个环境要模拟断开VIP网络，可以在虚拟机上把对应的网卡down掉。
+        //这个环境是node1上运行的，所以在node1的虚拟上down掉对应网卡
+        [root@node2 ~]# pcs status
+        Resource Group: TestGroup
+        VIP	(ocf::heartbeat:IPaddr2):	Started node2
+        TestLVM	(ocf::heartbeat:LVM):	Started node2
+        datafile	(ocf::heartbeat:Filesystem):	Started node2
 
-        status)
-        ps -aux | grep db2sysc | grep -v grep
-        RETVAL=$?
-        ;;
+        Failed Actions:
+        * VIP_start_0 on node1 'unknown error' (1): call=59, status=complete, exitreason='Unable to find nic or netmask.',
+        last-rc-change='Wed Feb  7 17:56:14 2018', queued=0ms, exec=38ms
 
-        stop )
-        echo -n "shutdown IBM db2"
-        su - $DB2_OWNER -c $DB2_HOME/adm/db2stop force
-        rm -f /var/lock/db2
-        echo "ok"
-        RETVAL=$?
-        ;;
-        restart|reload)
-        $0 stop
-        $0 start
-        RETVAL=$?
-        ;;
-        *)
-        
-        echo "usage:$0 start|stop|restart|reload"
-        exit 1
-        
-        esac
-        exit $RETVAL
-        chmod 755 /etc/init.d/db2p.sh
+        集群检测到VIP资源down掉后，会报出FAILED状态，然后进行stoping再到stoped，NODE2节点上在开始starting到started状态，正事启用
 
-3.	添加resource资源，在web页面添加（脚本在/etc/init.d/）
+>全部在node2上运行了，此刻即使你的node1恢复了，这时候node2在断开外部网络，也没有办法切到node1上了，因为在集群的记录中，node1的VIP网络是坏掉的，除非你使用clear指令来清除记录，但是在生产上我们不可能实时关注集群，所以我们还是要有个策略来自己搞定
 
-![](./images/Cluster7/db2startstop.png)
+参数：failure-timeout ，失效多少秒后可以回切资源到失效的主机
 
->指令添加：包含failure-timeout
-        
-    #pcs resource create dbstartstop lsb:db2.sh
-    #pcs resource group add db2group dbstartstop
-    #pcs resource meta dbstartstop  failure-timeout=30
+    #pcs resource meta VIP failure-timeout=30    //单位秒
+    #pcs resource meta TestLVM failure-timeout=30
+    #pcs resource meta datafile failure-timeout=30
 
-### DB2切换测试
-1.	检测条件为
+图形界面选择这里输入即可：
 
-        ps -aux | grep db2sysc | grep -v grep     //判断db2sysc  进程是否存在
-	
-2. 在资源启动的主机上kill掉db2sysc进程进行切换测试,未kill之前:
+![](../images/Cluster7/mate.png)
 
-        Resource Group: db2group
-            VIP	(ocf::heartbeat:IPaddr2):	Started ywdb1 
-            lvm	(ocf::heartbeat:LVM):	Started ywdb1 
-            dbfs	(ocf::heartbeat:Filesystem):	Started ywdb1 
-            db2startstop	(lsb:db2.sh):	Started ywdb1
-        [root@ywdb1 init.d]# ps -aux | grep db2sysc
-        db2inst   76453  0.1  3.9 1473096 39872 ?       Sl   18:48   0:02 db2sysc 0
-        root     110183  0.0  0.0 112656   972 pts/1    S+   19:26   0:00 grep --color=auto db2sysc
+这个时候你在恢复好网络 ，然后断开网互相切换试试看，记得要等待30秒哦。
 
-3. 杀掉之后切换到ywdb2执行
+2.	如何解决回切问题（主机恢复后,VIP回归到原主机）
+* 很头疼的问题来了，如上面的实例，我们的node1坏掉，服务切换到node2上进行工作，然是1分钟以后node1恢复正常了？会发生什么情况？？？？？
+* 服务很有可能会切换回node1上去运行，生产环境，你这样飘来飘去，你的老板肯定疯掉！同样需要找个参数来处理这个问题。
+* 参数：resource-stickiness 资源对主机的黏贴性
+* 在node1恢复后，为防止node2资源迁回node1（迁来迁去对还是会对业务有一定影响）
 
-        [root@ywdb1 init.d]# kill -9 76453
-        Resource Group: db2group
-            VIP        (ocf::heartbeat:IPaddr2):	Started ywdb2
-            lvm        (ocf::heartbeat:LVM):   Started ywdb2
-            dbfs	(ocf::heartbeat:Filesystem):    Started ywdb2
-            db2startstop	(lsb:db2.sh):   Started ywdb2
+        #pcs resource defaults resource-stickiness=100
 
-        Failed actions:
-            db2startstop_monitor_60000 on ywdb1 'not running' (7): call=125, status=complete, exit-reason='none', ……..
-3. 测试链接数据库
+这里设置的defaults参数，就是切换到哪就在哪运行，不回切！
 
-        [db2inst@ywdb2 ~]$ db2 connect to sample
+3.	启动优先级 
 
-        Database Connection Information
+![](../images/Cluster7/youxianji.png)
+>资源组启动优先级图例
 
-        Database server        = DB2/LINUXX8664 9.7.3
-        SQL authorization ID   = DB2INST
-        Local database alias   = SAMPLE
+在WEB界面，勾选资源组，进入资源组的参数配置界面，可以进行配置资源组启动优先级。
 
-4. 添加一步状态查看。
+>指令配置
 
-## 继续Web集群
-DB2这个实例是利用自建脚本来启动服务，相对来讲会复杂一下，但是PCS内会为我们提供一定的可构建集群服务的默认资源，使用起来也非常方便。
+        pcs constraint location TestGroup prefers node1=200 
+        指定node1优先启动TestGroup
 
-### Apache
-1.	双侧安装http服务
+crm_simulate -sL 或者 pcd config show 查看资源黏性值，集群业务优先在资源黏性值高的节点上运行。
 
-        [root@ywdb1 ~]# yum -y install httpd
-        [root@ywdb2 ~]# yum -y install httpd
+        [root@node1 ~]# crm_simulate -sL
 
-2.	添加web集群虚拟IP
+            Allocation scores:
+            group_color: TestGroup allocation score on node1: 200
+            group_color: TestGroup allocation score on node2: 0
 
-        [root@ywdb1 ~]# pcs resource create webvip ocf:heartbeat:IPaddr2 ip="192.168.56.190" cidr_netmask=32 op monitor interval=30s
-        [root@ywdb1 ~]# pcs resource meta webvip failure-timeout=30
-3.	设置WebServer资源
+## 2. 断心跳测试（脑裂的防范）
+1.	脑裂（双节点无fence设备）
+将心跳网络断开，就会脑力，那么脑裂又是什么？！
+* 在心跳失效的时候，就发生了脑裂（split-brain）。
 
-        [root@ywdb1 ~]#pcs resource create WebServer ocf:heartbeat:apache httpd="/usr/sbin/httpd" configfile="/etc/httpd/conf/httpd.conf" statusurl="http://localhost/server-status" op monitor interval=1min
-        [root@ywdb1 ~]# pcs resource meta WebServer failure-timeout=30
-4.	添加到group组执行
-        
-        [root@ywdb1 ~]# pcs resource group add HttpServer webvip WebServer
-5.	配置httpd资源statusurl，双侧主机都要执行
+    比如：正常情况下，Node1和Node2使用心跳检测以确认对方存在；在通过心跳检测不到对方时，就接管对应的resource。然而突然间，Node1和Node2之间的心跳不存在了，而Node1和Node2事实上都认为自己是active的，这时Node1要接管Node2的resource么？ 而同时Node2要接管Node1的resource么？这时就是split-brain。
+* 那么split-brain会引起数据的不完整性,甚至是灾难性的,又如何理解呢?
 
-        [root@ywdb1 ~]# cat > /etc/httpd/conf.d/status.conf << EOF
-        <Location /server-status>
-        SetHandler server-status
-        Order deny,allow
-        Deny from all
-        Allow from localhost
-        </Location> 
-        EOF
-6.	设置web页面 
+    其实不仅仅是数据的不完整性，可能会对服务造成严重影响，倒霉的时候会是毁灭性的打击。
+    对于数据的不完整性，主要为集群节点访问同一存储，而此时并没有锁机制来控制数据访问（都脑裂了，心跳全没有了，咋控制啊？），同时访问读写数据，就会出现数据的不完整性的可能。这个也是CentOS 中的HA为何必须要fence设备的主要原因。
 
-        [root@ywdb1 ~]#cat <<-END >/var/www/html/index.html
-        <html>
-        <body>Hello ywdb1</body>
-        </html>
-        END
-        [root@ywdb2 ~]#cat <<-END >/var/www/html/index.html
-        <html>
-        <body>Hello ywdb2</body>
-        </html>
-        END
-* 本例采用的是本地磁盘，主要是让大家看清楚切换效果，实际生产环境都加可以利用上面已有的lvm进行共享磁盘设置，挂载到/var/www/html/，这样的话无论切换到哪个主机都会看到相同页面。
-* 结合当前环境而言，我只有一个共享存储制作的LVM，如果我要是使用共享存储的其它LV来作为挂载的话，必须要保证我的web资源组和DB2资源组在同一台主机上运行。
+2. 模拟脑裂情况发生
+    在实例环境中，模拟心跳断掉，即down掉心跳网卡，pcs status查看node1和node2。
 
-7.	切换测试
+node1 主机信息:
 
-        [root@ywdb1 ~]# pcs status
-        ……
-        Resource Group: HttpServer
-            webvip	(ocf::heartbeat:IPaddr2):	Started ywdb2 
-            WebServer	(ocf::heartbeat:apache):	Started ywdb2
-        ……
-        
-        [root@ywdb1 ~]# pcs constraint location HttpServer prefers ywdb1=INFINITY
-        [root@ywdb2 ~]# pcs  status
-        ……
-        Resource Group: HttpServer
-            webvip	(ocf::heartbeat:IPaddr2):	Started ywdb1 
-            WebServer	(ocf::heartbeat:apache):	Started ywdb1
-        [root@ywdb1 ~]# pcs constraint remove location-HttpServer-ywdb1-INFINITY
- 
-* 实际生产环境中，已经很少用HA的技术保障WEB了，基本上都采用lvs来负载web页面了，更多的还是数据库在用HA或者CRM一类的系统用的多。
+    Online: [ node1 ]
+    OFFLINE: [ node2 ]
+    Resource Group: TestGroup
+        VIP	(ocf::heartbeat:IPaddr2):	Started node1
+        TestLVM	(ocf::heartbeat:LVM):	Started node1
+        datafile	(ocf::heartbeat:Filesystem):	Started node1
 
->总结
-差双心跳，资源介绍，参数介绍等等
 
-注意添加资源顺序，减少使用规则是次数
-资源启动顺序
-pcs constraint order set VIP lvm dbfs
-pcs constraint order remove resource1 [resourceN]...
-pcs resource relocate run
+node2 主机信息:
 
-12、配置服务启动顺序
-以避免出现资源冲突，语法：(pcs resource group add的时候也可以根据加的顺序依次启动，此配置为可选)
-1.	# pcs constraint order [action] then [action]
-2.	# pcs constraint order start VIP then start WEB
-pcs resource update VIP op monitor interval=30s
-查看集群成员
-[root@node01 ~]# corosync-cmapctl |grep members  
+    Online: [ node2 ]
+    OFFLINE: [ node1 ]
+    Resource Group: TestGroup
+        VIP        (ocf::heartbeat:IPaddr2):	Started node2
+        TestLVM    (ocf::heartbeat:LVM):   Started node2
+        datafile   (ocf::heartbeat:Filesystem):    Started node2
 
+经典的脑裂状态，双方都无法感知对方，认为对方死掉了，双侧资源发生争抢！
+>重点提示，本实例状态下，如果恢复心跳，LVM为进入blocked状态，无法恢复集群，而且集群也无法重启，可以尝试关闭主机，然后一个一个启动。切勿同时启动。
+
+脑裂条件如下：
+	资源运行一方，心跳断掉将会脑裂，争抢资源。
+	资源不运行一方，心跳断掉不会争抢资源，但是心跳恢复会出现重新计算情况。
+
+3.	怎样可以预防脑裂呢？
+
+        1. 很多人会想到，将心跳网络设置成为bond的active和backup模式！
+        很好，你答对了，可以采用,而且我也在使用，但是不是最终的解决办法。
+        b. Fence设备！！
+        正确！最终的方法就是fence设备，一旦脑裂，fence会将一端主机强制关机或者重启，这取决于你对fence的设置，从根本上避免了双侧同时使用资源的根本可能。
+        c. 双心跳！！
+        其实双心跳和active/backup网络有异曲同工的之处，稍后详细讲解如何设置
+
+4.	Bond网络设置（网络ACTIVE/BACKUP）
+不在多说了，参考数的其它章节，有专门讲bond的设置
+
+## 3. 双心跳
+1. 配置冗余环协议（RRP）
+
+使用 pcs cluster setup 命令创建集群时，可使用冗余环协议，通过为每个节点同时指定两个接口配置集群。使用默认 udpu 传送指定集群节点时，可指定 ring 0 地址，后接 ‘,’，然后是 ring 1 地址。
+
+例如：下面的命令配置有两个节点的双心跳网络，NODE1上有2个网络用于心跳192.168.57.3 和192.168.58.3，NODE2 上也有2个网络用于心跳192.168.57.4 和192.168.58.4，如果需要组成双心跳，请执行以下命令。
+
+    # pcs cluster setup --name rrp_cluster node1,node1-1 node2,node2-1 
+
+2. 添加双心跳
+
+        NODE1和NODE2节点进行添加
+        #vim /etc/corosync/corosync.conf
+        在totem {}
+        定义：
+        rrp_mode: passive  #默认为none，修改为passive才可以支持两个网段
+
+        nodelist {
+        node{
+            ring0_addr:node1
+            ring1_addr:node1-1  //node1-1为第二个心跳 
+            }
+        node{
+            ring0_addr: node2
+            ring1_addr: node2-1  //node2-1为第二个心跳 
+            }
+
+                }
+
+3. 修改host表对应关系(添加补全)
+
+        NODE1和NODE2节点进行添加 
+        vim /etc/hosts
+        192.168.57.3   NODE1
+        192.168.57.4   NODE2
+        192.168.58.5     ISCSI
+        192.168.58.3    node1-1
+        192.168.58.4    node2-1
+
+4. 集群认证
+
+        [root@node1 ~]# pcs cluster auth node1-1 node2-1
+        Username: hacluster
+        Password:
+        node1-1: Authorized
+        node2-1: Authorized
+
+>出现以下显示表示认证成功，重启集群
+
+    pcs cluster stop --all
+    pcs cluster start --all
+
+## 4. stonith设置，其实就是Fence设置
+* 它就是负责群集某节点故障后，果断使其关机，重启，卸载群集资源的一种机制，大多数采用硬件设备提供，例如。ilo卡，ipmi等等..
+>前面的章节关闭的fence设备，继续如下操作还请打开fence设备
+
+    [root@node2 ~]# pcs property set stonith-enabled=true
+* 查看本系统支持的fence设备
+    
+    pcs stonith list
+
+* 查看即将要使用的fence设备相关信息
+
+    [root@node2 ~]# pcs stonith describe fence_ipmilan
+    实际环境中，fence_ipmilan但是必须要加lanplus="true"参数
+
+* 生产初始配置文件stonith_cfg
+    
+    pcs cluster cib stonith_cfg
+
+* 2侧主机配置fence
+
+    [root@node2 ~]# pcs -f stonith_cfg stonith create ipmi-fence-node11 fence_ipmilan lanplus="true" pcmk_host_list="node1" pcmk_host_check="static-list" action="reboot" ipaddr="192.168.133.129" login=USERID passwd=password op monitor interval=60s
+
+    [root@node2 ~]# pcs -f stonith_cfg stonith create ipmi-fence-node22 fence_ipmilan lanplus="true" pcmk_host_list="node2" pcmk_host_check="static-list" action="reboot" ipaddr="192.168.133.131" login=USERID passwd=password op monitor interval=60s
+
+>解释：创建一个名为ipmi-fence-node11的fence设备名称用于建node1的fence，pcmk_host_check="static-list"的功能是将node1与192.168.133.129对应，后面login=USERID passwd=password op monitor interval=60s不解释。
+
+* 检查stonith_cfg中stonith配置信息
+
+        pcs -f stonith_cfg stonith 
+* 上文关闭了stonish，现在开启stonish
+
+        pcs -f stonith_cfg property set stonith-enabled=true 
+* 检查stonith_cfg中stonith是否已经开启
+
+        pcs -f stonith_cfg property
+* 将stonith_cfg写入cib.xml
+    
+        pcs cluster cib-push stonith_cfg 
+* 测试fence
+    
+        node2上测试FENCE是否成功stonith_admin --reboot node1
+        node1上测试FENCE是否成功stonith_admin --reboot node2
+>当看到主机重启的时候，这部分也就完成了。
+
+* 图形界面配置
+
+![](../images/Cluster7/fence.png)
+
+## 5. 备份和恢复集群
+可使用下面的命令将集群配置备份为 tarball 文件。如果未指定文件名，则会使用标准输出作为文件名。
+    
+    pcs config backup filename
+
+ 使用下面的命令中所有节点中使用备份文件恢复集群配置。如果没有指定文件名，则会使用标准输入。使用 --local 选项则只会恢复当前节点中的文件。
+
+    pcs config restore [--local] [filename]
+
+
+## 总结： 
+本章重点在于讲解集群中出现的常用故障和修复方法，这个只是简单的集群，实际环境中可能会出现各种各样的问题，会用到书中没有讲到的各种参数，所以还请参考附录-PCS参数，熟悉相关参数的功能，有个印象，查问题和修复的时候也有个方向和思路。
