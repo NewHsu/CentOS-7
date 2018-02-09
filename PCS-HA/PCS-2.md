@@ -31,6 +31,10 @@
         添加规则：（如果防火墙已经关闭则无需配置）
         # firewall-cmd --permanent --add-service=high-availability
         # firewall-cmd --add-service=high-availability
+
+        TCP：端口 2224、3121、21064
+        UDP：端口 5405
+        DLM（如果使用附带 clvm/GFS2 的 DLM 锁管理器）：端口 21064 
 3. 关闭Selinux（NODE1和NODE2都执行操作）
 
         #vim /etc/selinux/config 
@@ -70,6 +74,8 @@
 
         建立存储块
         [root@ISCSI ~]# targetcli
+        
+        命令行创建存储
         /> /backstores/block create cluster_vol1 /dev/sdb1
 
         配置ISCSI Target命名
@@ -144,7 +150,6 @@
 
         NODE1 和 NODE2 节点执行
         # iscsiadm -m discovery -t sendtargets -p 192.168.58.5:3260
-        192.168.58.5:3260,1 iqn.2018-02.com.mwdserver:iscsimwd1
 
 5. 登录iscsi设备
 

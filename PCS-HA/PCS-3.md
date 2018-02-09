@@ -181,7 +181,7 @@ node2 主机信息:
     pcs cluster start --all
 
 ## 4. stonith设置，其实就是Fence设置
-* 它就是负责群集某节点故障后，果断使其关机，重启，卸载群集资源的一种机制，大多数采用硬件设备提供，例如。ilo卡，ipmi等等..
+* 它就是负责群集某节点故障后，果断使其关机，重启，卸载群集资源的一种机制，大多数采用硬件设备提供，例如hp ilo，ibm ipmi,rsa以及dell drac5/6..
 >前面的章节关闭的fence设备，继续如下操作还请打开fence设备
 
     [root@node2 ~]# pcs property set stonith-enabled=true
@@ -223,6 +223,7 @@ node2 主机信息:
         node2上测试FENCE是否成功stonith_admin --reboot node1
         node1上测试FENCE是否成功stonith_admin --reboot node2
 >当看到主机重启的时候，这部分也就完成了。
+虚拟机模拟环境建议关掉fence配置，如果是vmware vsphere环境还请配置相对应的vmware fence，如果是kvm还请使用kvm fence配置，可参考附录-vmware fence配置。
 
 * 图形界面配置
 
