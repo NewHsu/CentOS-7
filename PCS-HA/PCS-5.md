@@ -156,6 +156,18 @@
             [root@node1 ~]# drbdadm secondary data
             [root@node2 ~]# drbdadm primary data
 
+        8.DRBD脑裂处理流程（仅供参考，数据无价，还请及时备份）
+            1. 查看/proc/drbd文件，确认drbd双侧主机状态
+                主节点的连接状态始终为 StandAlone ，主节点显示备节点为 Unknown
+                备节点的连接状态始终为 WFConnection
+            2. 处理办法（备节点操作）
+                [root@node2 ~]# drbdadm disconnect data  ##断开连接
+                [root@node2 ~]# drbdadm secondary data  ##设置为secondary状态
+                [root@node2 ~]# drbdadm --discard-my-data connect data
+                ##告诉slave，secondary 上的数据不正确，以primary 上的数据为准
+            3. 等待同步结束，在进行修复之前，一定要先确认是什么问题引起的脑裂，不然问题会更加严重。
+                 
+
 ### 4.5 PCS集群配置
 
 1. 创建DRBD资源
