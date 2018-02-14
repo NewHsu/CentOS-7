@@ -1,6 +1,59 @@
-# GlusterFS 故障恢复
+# GlusterFS 技巧篇
 
 常在河边走，哪有不湿鞋？
+
+## Glusterfs 维护技巧
+一旦这东西上了生产，没有一定技术底蕴和了解相关维护技巧，那么将会是四处碰壁，弄不好，数据都的毁你手里！生产无小事，操作需谨慎！
+1. 替换磁盘 （假如生产磁盘损坏，需要更换磁盘，可以按照如下示例完成）
+        
+        临时利用sdc1模拟备用磁盘替换sdb1
+        对sdd进行分区产生sdc1，进行xfs格式化
+        [root@node1 glusterfs]# fdisk /dev/sdc
+        [root@node1 glusterfs]# mkfs.xfs /dev/sdc1
+        将sdc1所在挂载点目录/glusterfs1,加入到Brick池中.
+        
+
+        gluster volume replace-brick dht_vol server0:/mnt/sdb1 server0:/mnt/sdc1 start
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## GlusterFS常见故障模拟（利用前章实例环境）
+
+1. 挂载点断网
+
+        例如前章节中，client挂载了node1:/Gluster-mod,但是如果node1，发生断网会出现什么情况呢？模拟断掉node1的public网络，然后进行数据写入。
+        ## 断网后，客户端写入新数据到挂载点，发现还可以写入。
+        [root@client glustermnt]# cp /var/log/tallylog ./
+        ## 到node1 上查看，发现没有数据写入。而node2 和 node3 上分别有数据写入
+        [root@node1 glusterfs]# ls
+        messages  
+        [root@node2 glusterfs]# ls
+        messages  tallylog
+        [root@node3 glusterfs]# ls
+        messages  tallylog
+        到此说明node1为挂载点，但是即使他不存在了，客户端还是可以向其他GlusterFS集群写入数据的。此时恢复node1，会发现数据存在差异，这时集群会自动同步到最新状态。
 
 1. 分布式卷灾难恢复
 GlusteFS 崩溃，数据恢复（严重灾难，仅分布式卷适用于以下方法）
