@@ -121,7 +121,7 @@
         2：主机扩容
         主机扩容需要先将节点加入集群，然后按照磁盘扩容的方式完成扩容。
 
-## 3. 挂载点断网
+## 3. 挂载点网络中断
 
         例如前章节中，client挂载了node1:/Gluster-mod,但是如果node1，发生断网会出现什么情况呢？模拟断掉node1的public网络和private网络，然后进行数据写入。
         ## 断网后，客户端写入新数据到挂载点，发现还可以写入。
@@ -160,115 +160,113 @@
         # gluster volume bitrot Gluster-mod  scrub pause
         # gluster volume bitrot Gluster-mod  scrub resume
 
-
-
-
-
-
-        
-
-1. 分布式卷灾难恢复
-GlusteFS 崩溃，数据恢复（严重灾难，仅分布式卷适用于以下方法）
-在GlusterFS无法启动的情况下可以将各个挂载目录的文件进行合并，然后即可恢复出原有目录的内容。
-这里要注意 ---------T   这个是blance 之后留下来的文件，千万不要复制过去。
-scp -r `ls -l /data/ | grep -v "\---------T" | awk '{print $9}'`  g1:/cdr/
-
-2. 保留磁盘数据，更换主机（灾难恢复）
-
-        1: 安装软件
-        2:恢复原来的节点名称和IP (同原来机器一样)
+## 5. 保留磁盘数据，更换主机（灾难恢复）
+      生产中，经常会出现主机故障，但是磁盘数据没有任何问题，这时候有2个选择，意识更换主机配件进行修复，有时候也有极端的现象，比如主机彻底无法使用，这时候需要把磁盘迁移到其他主机进行使用。处理过程如下：
+        1: 安装新主机的操作系统和相关软件
+        2: 恢复原来的节点名称和IP (同原机器一样)
         3: UID 查看 (新机器)
         cat /var/lib/glusterd/glusterd.info
         4: 在线的其他节上上查看原来更换主机的UID
         cat /var/lib/glusterd/peers/id
-        找到server2 的UID
-        可以使用gluster peer status 进行查看id
-        5：找到的ID 进行复制,然后更改server的新ID
+        找到原损坏主机的UID，也可以使用gluster peer status 进行查看id
+        5：将ID进行复制,然后更改新主机的ID为原主机ID。
+        vim /var/lib/glusterd/glusterd.info
         6：重启gluster
-        7： 添加节点(要恢复的机器上操作.添加存在的节点)
-        gluster volume sync nodename all
+        7：添加节点(要恢复的机器上操作.添加存在的节点)
+        gluster volume sync <nodename> all
 
-3. 双副本恢复 （重大灾难，集群无法启动，但数据可访问）
-这里要注意 ---------T   这个是blance 之后留下来的文件，千万不要复制过去。
-scp -r `ls -l /data/ | grep -v "\---------T" | awk '{print $9}'`  g1:/cdr/
+## 6. 调优参数
+      设置调优参数之前，先要终止对外提供服务，然后进行进行设置，在重新开启glusterfs。
+      * 全局相关
+      1. 启用修复模式
+      [root@node2 ~]# gluster volume set Gluster-mod cluster.entry-self-heal on
+      2. 元数据修复，用于复制卷模式的文件和目录，需要开启cluster.entry-self-heal
+      [root@node2 ~]# gluster volume set Gluster-mod cluster.metadata-self-heal on
+      3. 仅用于数据自我修复，仅用于复制卷的文件，需要开启cluster.entry-self-heal
+      [root@node2 ~]# gluster volume set Gluster-mod cluster.data-self-heal on
+      4. 开启修复
+      [root@node2 ~]# gluster volume set Gluster-mod cluster.self-heal-daemon on
+      5. 指定修复算法，“full”是将整个源文件复制一份；“diff”是通过算法将不一致的文件块进行复制，如果不指定则动态选择。
+      [root@node2 ~]# gluster volume set Gluster-mod cluster.data-self-heal-algorithm full
+      6. 磁盘最小剩余空间
+      [root@node2 ~]# gluster volume set Gluster-mod cluster.min-free-disk 20%
+      7. 最小空余inode
+      [root@node2 ~]# gluster volume set Gluster-mod cluster.min-free-inodes 10%
+      8. 条带卷的block读取和写入大小，默认128K
+      [root@node2 ~]# gluster volume set Gluster-mod cluster.stripe-block-size 256KB
+      9. 更改brick日志级别，默认是info，降低日志级别，有助于性能提升，不便于排错，如果非常稳定，可降低日志级别
+      [root@node2 ~]# gluster volume set Gluster-mod diagnostics.brick-log-level ERROR
+      10. 更改Client日志级别，所有日志可选范围是DEBUG|WARNING|ERROR|CRITICAL|NONE|TRACE|INFO
+      [root@node2 ~]# gluster volume set Gluster-mod diagnostics.client-log-level ERROR
+      11. 计数，统计相关操作延时，默认关闭状态，开启将消耗很大资源
+      [root@node2 ~]# gluster volume set Gluster-mod diagnostics.latency-measurement on
+      12. 被缓存的文件最大size，单位字节，依据内存的大小，存储文件大小而设定，建议多测试。2G
+      [root@node2 ~]# gluster volume set Gluster-mod performance.cache-max-file-size 2147483648
+      13. 被缓存文件最小size，字节单位，依据内存的大小，存储文件大小而定值，建议多测试而定义。2MB
+      [root@node2 ~]# gluster volume set Gluster-mod performance.cache-min-file-size 2097152
+      14. 设置cache大小。总缓存，读！读！读！
+      [root@node2 ~]# gluster volume set Gluster-mod performance.cache-size 4GB
+      15. 数据被缓存的时间，单位秒（1-60）。
+      [root@node2 ~]# gluster volume set Gluster-mod performance.cache-refresh-timeout 1
+      16. IO缓存转换器会定期的根据文件的修改时间来验证缓存中相应文件的一致性，默认关闭
+      [root@node2 ~]# gluster volume set Gluster-mod performance.client-io-threads on
 
-4. 替换多副本brick （重大灾难，主机宕机无法启动）
+      * 控制
+      1. 限制网络访问，仅允许192.168.56.网段进行访问。*可以替换为某个主机IP。
+      [root@node2 ~]# gluster volume set Gluster-mod  auth.allow 192.168.56.*
+      2. 拒绝哪些地址访问
+      [root@node2 ~]# gluster volume  set Gluster-mod auth.reject 192.168.57.*
 
-        Gluster volume replace-brick <VOLNAME> <BRICK> <NEW-BRICK> {start [force]|pause|abort|status|commit [force]} - replace-brick operations
+      * 写操作相关
+      1. “后写”技术极大提升写操作的速度。是将多个小的写操作整合成为几个大的写操作，并在后台执行。
+      [root@node2 ~]# gluster volume set Gluster-mod performance.write-behind on
+      2. 每个文件写入缓冲区的大小，默认1MB， write-behind的buffer容量
+      [root@node2 ~]# gluster volume set Gluster-mod performance.write-behind-window-size 8MB
+      3. 开启异步模式，使用该选项将close()和flush()放在后台执行，返回操作成功或者失败，加速客户端请求，然后在逐步的刷新落地。
+      [root@node2 ~]# gluster volume  set  Gluster-mod performance.flush-behind on
 
-        Gluster volume replace-brick gfs g4:/g4 g5:/g5 commit force
+      * 读操作相关
+      1. 预读，当应用程序忙于处理读入数据是，GlusterFS可以预先读取下一组所需数据，保证高效读取，此外，传输时候的较小IO读取会降低磁盘和网络压力。
+      [root@node2 ~]# gluster volume set Gluster-mod performance.read-ahead on
+      2. 目录预读功能
+      [root@node2 ~]# gluster volume set Gluster-mod performance.readdir-ahead on
+      3. 预读页数 1-16，预读取块的最大数。这个最大值仅适用于顺序读取，每个page默认是128KB，默认是2
+      [root@node2 ~]# gluster volume set Gluster-mod performance.read-ahead-page-count 8
+      4. IO cache，对于读大于写的操作非常有用。默认开启
+      [root@node2 ~]# gluster volume set Gluster-mod performance.io-cache on
+      5. 小文件加速，注意会有性能损失，多测试。
+      [root@node2 ~]# gluster volume set Gluster-mod performance.quick-read on
+      6. IO缓存器，默认开启，O缓存转换器读数据一次读page-size设置的大小的数据，并把读到的数据缓存起来指到cache-size设置的大小
 
-        volume rebalance <VOLNAME> {{fix-layout start} | {start [force]|stop|status}} - rebalance operations
-        gluster volume repalance gfs start force
-        gluster volume repalance gfs status
+      * 线程控制
+      1. 设置 io 线程 8 ， 取值 1-64，默认为16，并不是越多越快，要衡量自身硬件的吞吐量，建议设置小于或者等于CPU数量
+      [root@node2 ~]# gluster volume set Gluster-mod performance.io-thread-count 8
 
 
-11.Q&A
+>以上调优参数并不是都要使用，一定要利用io zone 或者 fio 进行多测试，然后结合不同调优参数进行调节。通常如果不考虑或者能力不够的情况下，建议开启如下即可：
+    1. 写模式开启“write-behind”和“flush-behind”
+    2. 开启修复“cluster.self-heal-daemon”
+    3. 保护磁盘和inode不被用尽“cluster.min-free-disk”和“cluster.min-free-inodes”
+    4. 加大缓存到合适的值“performance.cache-size”
+    5. 进阶一点可以分析存储文件构成，设置 max和min的缓存文件大小
+    6. 在进阶一点可以设置“performance.write-behind-window-size”，数值太大写的慢，数值太小写的太频繁，依据队列长度和请求频率找到合适值。
+    7. 分析访问频率和量，调节io线程“performance.io-thread-count”
+    8. 小文件太多，可以开启小文件模式“performance.quick-read”
+    9. 顺序文件较多，命中率较高的情况下，或者是大文件较多可以开启预读并设置合适的count“performance.read-ahead”、”performance.readdir-ahead“、”performance.read-ahead-page-count“
 
-Q1：Gluster需要占用哪些端口？
-Gluster管理服务使用24007端口，Infiniband管理使用24008端口，每个brick进程占用一个端口。比如4个brick，使用24009-24012端口。Gluster内置NFS服务使用34865-34867端口。此外，portmapper使用111端口，同时打开TCP和UDP端口。
+## 脑裂
+* 简单来说就是两个节点之间的心跳断了，每个主机都各写各的，都认为自己是对的，对方是错的。这种情况下只能手动判断和恢复了，但是对于智能的分布式系统来说，这不科学！gluster采用了quorum机制尽可能的预防脑裂。
+quorum机制运行在glusterd上，它是服务器端的一个守护进程。quorum的值是可以设置的，如果这个数没有达到，brick就被Kill掉了，任何命令都不能运行：
 
-Q2：创建Gluster资源池出问题？
-首先，检查nslookup是否可以正确解析DNS和IP。其次，确认没有使用/etc/hosts直接定义主机名。虽然理论上没有问题，但集群规模一大很多管理员就会犯低级错误，浪费大量时间。再者，验证Gluster服务所需的24007端口是否可以连接(比如telnet)？Gluster其他命令是否可以成功执行？如果不能，Gluster服务很有可能没有启动。
+  [root@node2 ~]# gluster volume set Gluster-mod cluster.server-quorum-type server    <----默认是none
+  [root@node2 ~]# gluster volume set all cluster.server-quorum-ratio 70%   <----百分比数值
+>这个设置涉及到集群是否工作，如上例的70%，如果活跃度低于70%，则整个集群会停止对外工作。
 
-Q3：如何检查Gluster服务是否运行？
-可以使用如下命令检查Gluster服务状态：
-(1) service glusterd status
-(2) systemctl status glusterd.service
-(3) /etc/init.d/glusterd status
+  1. 在线服务器的比率，有节点离线或者网络分裂时，系统进行投票
+  2. 投票的结果依据设定值而判断，集群内能够通信的节点间进行相互投票，如果票数操作设定值，则继续工作，如果不满足设定值，则不再接受数据写入。
+  3. 如果总共只有两个节点，则不要对此选项设置。
 
-Q4：无法在server端挂载(mount)Gluster卷？
-检查gluster卷信息，使用gluster volume info确认volume处于启动状态。运行命令“showmount -e <glusternode>“，确认可以输出volume相关信息。
 
-Q5：无法在client端挂载(mount)Gluster卷？
-检查网络连接是否正常，确认glusterd服务在所有节点上正常运行，确认所挂载volume处于启动状态。
-
-Q6：升级Gluster后，客户端无法连接？
-如果使用原生客户端访问，确认Gluster客户端和服务端软件版本一致。通常情况下，客户端需要重新挂载卷。
-
-Q7： 运行“glusterpeer probe“，不同节点输出结果可能不一致？
-这个通常不是问题。每个节点输出显示其他节点信息，并不包括当前节点；不管在何处运行命令，节点的UUID在所有节点上都是相同和唯一的；输出状态通常显示“Peer in Cluster (Connected)“，这个值应该和/var/lib/glusterd/glusterd.info匹配。
-
-Q8：数据传输过程中意外杀掉gluster服务进程？
-所有数据都不会丢失。Glusterd进程仅用于集群管理，比如集群节点扩展、创建新卷和修改旧卷，以及卷的启停和客户端mount时信息获取。杀掉gluster服务进程，仅仅是一些集群管理操作无法进行，并不会造成数据丢失或不可访问。
-
-Q9：意外卸载gluster？
-如果Gluster配置信息没有删除，重新安装相同版本gluster软件，然后重启服务即可。Gluster配置信息被删除，但数据仍保留的话，可以通过创建新卷，正确迁移数据，可以恢复gluster卷和数据。友情提示：配置信息要同步备份，执行删除、卸载等操作一定要谨慎。
-
-Q10：无法通过NFS挂载卷？
-这里使用Gluster内置NFS服务，确认系统内核NFS服务没有运行。再者，确认rpcbind或portmap服务处于正常运行中。内置NFS服务目前不支持NFS v4，对于新Linux发行版默认使用v4进行连接，mount时指定选项vers=3。
-mount -t nfs -o vers=3 server2:/myglustervolume/gluster/mount/point
-
-Q11：双节点复制卷，一个节点发生故障并完成修复，数据如何同步？
-复制卷会自动进行数据同步和修复，这个在同步访问数据时触发，也可以手动触发。3.3以后版本，系统会启动一个服务自动进行自修复，无需人工干预，及时保持数据副本同步。
-
-Q12：Gluster日志在系统什么位置？
-新旧版本日志都位于/var/log/glusterfs
-
-Q13：如何轮转(rotate)Gluster日志？
-使用gluster命令操作：gluster volume logrotate myglustervolume
-
- Q14:Gluster配置文件在系统什么位置？
-3.3以上版本位于/var/lib/glusterd，老版本位于/etc/glusterd/。
-
-Q15：数据库运行在gluster卷上出现很多奇怪的错误和不一致性？
-Gluster目前不支持类似数据库的结构化数据存储，尤其是大量事务处理和并发连接。建议不要使用Gluster运行数据库系统，但Gluster作为数据库备份是一个很不错的选择。
-
-Q16：Gluster系统异常，重启服务后问题依旧。
-很有可能是某些服务进程处于僵死状态，使用ps -ax | grep glu命令查看。如果发出shutdown命令后，一些进程仍然处于运行状态，使用killall -9gluster{,d,fs,fsd}杀掉进程，或者硬重启系统。
-
-Q17：需要在每个节点都运行Gluster命令吗？
-这个根据命令而定。一些命令只需要在Gluster集群中任意一个节点执行一次即可，比如“gluster volume create”，而例如“gluster peerstatus ”命令可以在每个节点独立多次执行。
-
-Q18：如何快速检查所有节点状态？
-Gluster工具可以指定选项 --remote-host在远程节点上执行命令，比如gluster --remote-host=server2 peer status。如果配置了CTDB，可以使用“onnode”在指定节点上执行命令。另外，还可以通过ssh-keygen和ssh-copy-id配置SSH无密码远程登录和执行命令。
-
-Q19：Gluster导致网络、内核、文件系统等出现问题？
-可能。但是，绝大多数情况下，Gluster或者软件都不会导致网络或存储等基础资源出现问题。如果发现由Gluster引起的问题，可以提交Bug和patch，并可以社区和邮件列表中讨论，以帮助改善Gluster系统。
-
-Q20：为什么会发生传输端点(transportendpoint)没有连接？
-在Gluster日志中看到这种错误消息很正常，表明Gluster由于一些原因无法通信。通常情况下，这是由于集群中某些存储或网络资源饱和引起的，如果这类错误消息大量重复报告，就需要解决问题。使用相关技术手段可以解决大部分的问题，另外有些情况可能由以下原因引起。
-1、需要升级RAID/NIC驱动或fireware；
-2、第三方备份系统在相同时间运行；
-3、周期更新locate数据库包含了brick和网络文件系统；
-4、过多rsync作业工作在gluster brick或mount点。
+## 总结
+本章节主要讲解一些较为常见的分布式存储维护方法和问题处理，实际生产中的问题可能要比这个复杂太多，一定要注意保障数据安全。
+调优部分还请依据实际的情况进行调节。切记，多测试，多调节，得到最优的值，每次只改动一个参数或者一组相关参数，进行测试，然后调回。避免过多更改，而后自己都不记得该如何下手了。
