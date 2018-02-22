@@ -244,27 +244,29 @@
 
 
 >以上调优参数并不是都要使用，一定要利用io zone 或者 fio 进行多测试，然后结合不同调优参数进行调节。通常如果不考虑或者能力不够的情况下，建议开启如下即可：
-    1. 写模式开启“write-behind”和“flush-behind”
-    2. 开启修复“cluster.self-heal-daemon”
-    3. 保护磁盘和inode不被用尽“cluster.min-free-disk”和“cluster.min-free-inodes”
-    4. 加大缓存到合适的值“performance.cache-size”
-    5. 进阶一点可以分析存储文件构成，设置 max和min的缓存文件大小
-    6. 在进阶一点可以设置“performance.write-behind-window-size”，数值太大写的慢，数值太小写的太频繁，依据队列长度和请求频率找到合适值。
-    7. 分析访问频率和量，调节io线程“performance.io-thread-count”
-    8. 小文件太多，可以开启小文件模式“performance.quick-read”
-    9. 顺序文件较多，命中率较高的情况下，或者是大文件较多可以开启预读并设置合适的count“performance.read-ahead”、”performance.readdir-ahead“、”performance.read-ahead-page-count“
+
+      1. 写模式开启“write-behind”和“flush-behind”
+      2. 开启修复“cluster.self-heal-daemon”
+      3. 保护磁盘和inode不被用尽“cluster.min-free-disk”和“cluster.min-free-inodes”
+      4. 加大缓存到合适的值“performance.cache-size”
+      5. 进阶一点可以分析存储文件构成，设置 max和min的缓存文件大小
+      6. 在进阶一点可以设置“performance.write-behind-window-size”，数值太大写的慢，数值太小写的太频繁，依据队列长度和请求频率找到合适值。
+      7. 分析访问频率和量，调节io线程“performance.io-thread-count”
+      8. 小文件太多，可以开启小文件模式“performance.quick-read”
+      9. 顺序文件较多，命中率较高的情况下，或者是大文件较多可以开启预读并设置合适的count“performance.read-ahead”、”performance.readdir-ahead“、”performance.read-ahead-page-count“
 
 ## 脑裂
 * 简单来说就是两个节点之间的心跳断了，每个主机都各写各的，都认为自己是对的，对方是错的。这种情况下只能手动判断和恢复了，但是对于智能的分布式系统来说，这不科学！gluster采用了quorum机制尽可能的预防脑裂。
 quorum机制运行在glusterd上，它是服务器端的一个守护进程。quorum的值是可以设置的，如果这个数没有达到，brick就被Kill掉了，任何命令都不能运行：
 
-  [root@node2 ~]# gluster volume set Gluster-mod cluster.server-quorum-type server    <----默认是none
-  [root@node2 ~]# gluster volume set all cluster.server-quorum-ratio 70%   <----百分比数值
+    [root@node2 ~]# gluster volume set Gluster-mod cluster.server-quorum-type server    <----默认是none
+    [root@node2 ~]# gluster volume set all cluster.server-quorum-ratio 70%   <----百分比数值
+
 >这个设置涉及到集群是否工作，如上例的70%，如果活跃度低于70%，则整个集群会停止对外工作。
 
-  1. 在线服务器的比率，有节点离线或者网络分裂时，系统进行投票
-  2. 投票的结果依据设定值而判断，集群内能够通信的节点间进行相互投票，如果票数操作设定值，则继续工作，如果不满足设定值，则不再接受数据写入。
-  3. 如果总共只有两个节点，则不要对此选项设置。
+    1. 在线服务器的比率，有节点离线或者网络分裂时，系统进行投票
+    2. 投票的结果依据设定值而判断，集群内能够通信的节点间进行相互投票，如果票数操作设定值，则继续工作，如果不满足设定值，则不再接受数据写入。
+    3. 如果总共只有两个节点，则不要对此选项设置。
 
 
 ## 总结
