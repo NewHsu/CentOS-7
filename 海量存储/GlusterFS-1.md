@@ -199,25 +199,25 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
         挂载磁盘到指定目录
         mount /dev/sdb1 /glusterfs ; mount /dev/sdc1 /glusterfs1
 
-5. 创建3副本卷（无论你使用什么卷类型，请记住，如果你要上生产，一定要和副本卷混合使用！切记！莫不要单独使用条带卷和分布式卷！）
+5. 创建3副本卷（无论你使用什么卷类型，请记住，如果你要上生产，一定要和副本卷混合使用！切记！莫不要单独使用条带卷和分布式卷！双副本一定要加入仲裁卷防止脑裂，参考后面脑裂仲裁卷的部分。）
 
-        [root@node1 ~]# gluster volume create Gluster-mod replica 3 node1:/glusterfs node2:/glusterfs node3:/glusterfs force
-
+        [root@node1 ~]# gluster volume create Gluster-mod replica 3 arbiter 1  node1:/glusterfs node2:/glusterfs node3:/glusterfs force
+        replica 3，3副本， arbiter 1，1个仲裁卷
 6. 查看卷信息
 
-        [root@node1 ~]# gluster vol info
+        [root@node1 /]# gluster vol info
 
-        Volume Name: Gluster-mod  ## 卷名称
-        Type: Replicate     ##  卷类型
-        Volume ID: 2b6a5e51-e201-485a-acb3-ac52f3c3da05 ##卷ID
-        Status: Created   ## 状态
-        Snapshot Count: 0   ## 快照
-        Number of Bricks: 1 x 3 = 3  ##Brick 数量，1*3 表述 3副本
+        Volume Name: Gluster-mod
+        Type: Replicate
+        Volume ID: a46d6dec-8acb-44b5-b00f-f6105a7b2de0
+        Status: Created
+        Snapshot Count: 0
+        Number of Bricks: 1 x (2 + 1) = 3    <----含有1个仲裁卷
         Transport-type: tcp
-        Bricks:                  ## 加入的brick和节点
+        Bricks:
         Brick1: node1:/glusterfs
         Brick2: node2:/glusterfs
-        Brick3: node3:/glusterfs
+        Brick3: node3:/glusterfs (arbiter)
         ......
 7. 启动卷
         [root@node1 ~]# gluster vol start Gluster-mod
@@ -249,18 +249,11 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
         [root@client ~]# cp /var/log/messages /glustermnt/
         [root@client ~]# ls /glustermnt/
         messages
-        确认写入成功后，到node1，node2，node3的挂载点去查看，你会发现每个挂载点下面都有这个文件，通过md5sum进行计算，你会发现这3个文件是一样的，这就说明文件被复写了3份。
+        确认写入成功后，到node1，node2，node3的挂载点去查看，你会发现每个挂载点下面都有这个文件，但是仲裁盘的目录下大小是0，为什么呢？后面讲解。
 
 ## 总结
 本章主要讲解GlusterFS的架构和卷的模式，重点理解GlusterFS的卷模式。GlusterFS的安装和使用相对较为简单，注意一定要细心，一旦上了生产，这些参数都很难在做修改。
+应用：文档、图片、音频、视频、云存储、虚拟化存储、高性能计算(HPC)、日志文件、RFID数据、对1M起的文件很适合， 但是对小文件不适合，越大越high，小文件则需要进行相关的调优。
 
 
 >参考：操作指令和其他卷的创建方法还请参考”附录-GlusterFS“
-
-
-应用：
- 文档、图片、音频、视频
- 云存储、虚拟化存储、高性能计算(HPC)
- 日志文件、RFID（射频识别）数据
-
- 对1M起的文件很适合， 但是对小文件不适合
