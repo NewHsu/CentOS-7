@@ -302,4 +302,4 @@
     [root@node1 /]# gluster volume geo-replication geo root@node3::disp-vol config ignore-deletes true
 
 ## 总结
-本章技术都作为主要的技术点，可以在生产中活学活用，可以深入掌握，了解的深入了，才能更好的驾驭这套分布式存储。
+本章技术都作为主要的技术点，可以在生产中活学活用，可以深入掌握，了解的深入了，才能更好的驾驭这套分布式存储。 
