@@ -8,7 +8,7 @@
 1. 模拟故障
 
         临时利用sdc1模拟备用磁盘替换sdb1
-        对sdd进行分区产生sdc1，进行xfs格式化
+        对sdc进行分区产生sdc1，进行xfs格式化
         [root@node1 glusterfs]# fdisk /dev/sdc
         [root@node1 glusterfs]# mkfs.xfs /dev/sdc1
         [root@node1 glusterfs]# mount /dev/sdc1 /glusterfs1
@@ -69,12 +69,11 @@
         [root@node3 ~]# gluster volume heal Gluster-mod info | grep Number
         Number of entries: 276
         Number of entries: 276
-        Number of entries: 276   <----数据同步完成，这里注意必须3个节点数值一样，才标识同步完成。
+        Number of entries: 276   <----数据同步完成，这里注意必须3个节点数值一样，才算同步完成。
 
 ## 2. 空间扩容
 
         空间扩容是生产中必备的技能，毕竟这是分布式文件系统，空间不足了，就要进行扩容。
-
         扩容分为2种形式，一种是磁盘扩容，一种是主机扩容。但是实际效果都是增加存储空间，操作方法也大同小异。
 
         1：磁盘扩容（接上例，将3台主机的sdc1扩容到GlusterFS集群中）
@@ -113,10 +112,7 @@
         ID                   : 5209e315-df47-4dd4-83b2-bf5232366d4e
         Status               : in progress       <----正在工作中，完成后是 Status : completed
 
-        [root@node1 ~]# gluster volume rebalance Gluster-mod fix-layout start
-        记得修复layout,重新平衡了资源，要进行layout修复。
-
-        gluster volume rebalance <VOLNAME> stop <----停止
+        # gluster volume rebalance <VOLNAME> stop <----停止
 
         2：主机扩容
         主机扩容需要先将节点加入集群，然后按照磁盘扩容的方式完成扩容。
@@ -204,8 +200,8 @@
       [root@node2 ~]# gluster volume set Gluster-mod performance.cache-max-file-size 2147483648
       13. 被缓存文件最小size，字节单位，依据内存的大小，存储文件大小而定值，建议多测试而定义。2MB
       [root@node2 ~]# gluster volume set Gluster-mod performance.cache-min-file-size 2097152
-      14. 设置cache大小。总缓存，读！读！读！
-      [root@node2 ~]# gluster volume set Gluster-mod performance.cache-size 4GB
+      14. 设置cache大小。总缓存，一定要考虑挂载系统，太大了，无法挂载，客户端内存不足以支撑。
+      [root@node2 ~]# gluster volume set Gluster-mod performance.cache-size 512MB
       15. 数据被缓存的时间，单位秒（1-60）。
       [root@node2 ~]# gluster volume set Gluster-mod performance.cache-refresh-timeout 1
       16. IO缓存转换器会定期的根据文件的修改时间来验证缓存中相应文件的一致性，默认关闭
@@ -254,12 +250,15 @@
       7. 分析访问频率和量，调节io线程“performance.io-thread-count”
       8. 小文件太多，可以开启小文件模式“performance.quick-read”
       9. 顺序文件较多，命中率较高的情况下，或者是大文件较多可以开启预读并设置合适的count“performance.read-ahead”、”performance.readdir-ahead“、”performance.read-ahead-page-count“
+>如何需要颗粒度更细的调优，可以直接调节配置文件，这里有更多的隐藏参数，但是风险也很高，如果不熟悉源码，无法定位哪些选项有哪些值，建议还是以上调优参数配置即可，文件位于“/var/lib/glusterd/vols/Gluster-mod/”
+
 
 ## 脑裂
 * 简单来说就是两个节点之间的心跳断了，每个主机都各写各的，都认为自己是对的，对方是错的。这种情况下只能手动判断和恢复了，但是对于智能的分布式系统来说，这不科学！gluster采用了quorum机制尽可能的预防脑裂。
 quorum机制运行在glusterd上，它是服务器端的一个守护进程。quorum的值是可以设置的，如果这个数没有达到，brick就被Kill掉了，任何命令都不能运行：
 
     [root@node2 ~]# gluster volume set Gluster-mod cluster.server-quorum-type server    <----默认是none
+
     [root@node2 ~]# gluster volume set all cluster.server-quorum-ratio 70%   <----百分比数值
 
 >这个设置涉及到集群是否工作，如上例的70%，如果活跃度低于70%，则整个集群会停止对外工作。

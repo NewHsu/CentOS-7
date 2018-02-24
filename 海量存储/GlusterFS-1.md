@@ -5,6 +5,7 @@
 * GlusterFS是Scale-Out存储解决方式Gluster的核心，它是一个开源的分布式文件系统，具有强大的横向扩展能力，通过扩展可以支持数PB存储容量和处理数千client。
 * GlusterFS借助TCP/IP或InfiniBandRDMA网络将物理分布的存储资源聚集在一起，使用单一全局命名空间来管理数据。
 * GlusterFS基于可堆叠的用户空间设计，可为各种不同的数据负载提供优异的性能。
+* GlusterFS支持SMB，CIFS，NFS等等posix协议，但是本章只推荐FUSE挂载使用方式。
 
 ### 1.2 GlusterFS架构
 
@@ -58,35 +59,35 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
 1. 分布卷
 
 分布式卷，文件通过hash算法随机的分布到由bricks组成的卷上。
- 
+
 ![](../images/GlusterFS/3.png)
 
 2. 复制卷
 
 复制式卷，类似raid1，replica数必须等于volume中brick所包含的存储服务器数，可用性高。
- 
+
 ![](../images/GlusterFS/4.png)
 
 3. 条带卷
 
 条带式卷，类似与raid0，文件被分成数据块，以Round Robin的方式存储在bricks中，对大文件支持较好，但是有条件限制，条带数=brickserver数量。
- 
+
 ![](../images/GlusterFS/5.png)
 
 4. 分佈式条带卷（復合型）
 分布式的条带卷，volume中brick所包含的存储服务器数必须是stripe的倍数(>=2倍)，兼顾分布式和条带式的功能。每个文件分布在四台共享服务器上，最少需要 4 台服务器才能创建分布条带卷。
- 
+
 ![](../images/GlusterFS/6.png)
 
 5. 分布式復制卷（復合型）
 分布式的复制卷，volume中brick所包含的存储服务器数必须是 replica 的倍数(>=2倍)，兼顾分布式和复制式的功能。
- 
+
 ![](../images/GlusterFS/7.png)
 
 6. 条带復制卷（復合型）
 条带復制卷条带数据在复制集群中的砖。为了达到最佳效果，你应该使用条纹复制卷在高并发环境下并行访问非常大的文件和性能是至关重要的。
 
-![](../images/GlusterFS/8.png) 
+![](../images/GlusterFS/8.png)
 
 
 ## 3. GFS实施安装
@@ -101,7 +102,6 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
 |CentOS 7.4|4Vdisk|2|192.168.56.104(public)</br> 192.168.57.3(private)|NODE1|Vbox|sdb1,sdc1|sdd1|GlusterFS集群节点1|
 |CentOS 7.4|4Vdisk|2|192.168.56.105(public)</br> 192.168.57.4(private)|NODE2|Vbox|sdb1,sdc1|sdd1|GlusterFS集群节点2|
 |CentOS 7.4|4Vdisk|2|192.168.56.102(public)</br> 192.168.57.5(private)|NODE3|Vbox|sdb1,sdc1|sdd1|GlusterFS集群节点3|
-|CentOS 7.4|4Vdisk|2|192.168.56.101(public)</br> 192.168.57.6(private)|NODE4|Vbox|sdb1,sdc1|sdd1|GlusterFS集群节点4|
 |CentOS 7.4|2Vdisk|1|192.168.56.103（public）|client|Vbox|测试客户端|
 
 ### 3.3 测试内容和环境说明
@@ -116,20 +116,20 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
 2. 系统安装
 
         Pc-server主机需要安装CentOS7.2 系统
-        选择标准最小安装模式. 
+        选择标准最小安装模式.
 
 3. 系统设置
 
         1:配置主机名，例如：{node1 , node2, node3 }备注：主机名一旦确认不可修改
         2:配置双网卡bond输出(Active-Backup)或者“InfiniBand”
 4. 其他配置
-	    
-        1. 关闭防火墙 
+
+        1. 关闭防火墙
         #systemctl  stop firewalld
         #systemctl  disable firewalld
-	2. 关闭Selinux (vim /etc/selinux/config , enabled 改成 disabled)
-	3. 系统优化(rc.local)
-	echo deadline > /sys/block/sdb/queue/scheduler 
+      	2. 关闭Selinux (vim /etc/selinux/config , enabled 改成 disabled)
+      	3. 系统优化(rc.local)
+	      echo deadline > /sys/block/sdb/queue/scheduler
         echo 65536 > /sys/block/sdb/queue/read_ahead_kb
         4. 添加hosts对应关系
         # vim /etc/hosts
@@ -139,9 +139,9 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
         192.168.57.6 node4
 
 5. 磁盘分区和格式化并挂载
-        
-        #fdisk /dev/sdb    
-        #fdisk /dev/sdc   
+
+        #fdisk /dev/sdb
+        #fdisk /dev/sdc
 6. 格式化和挂载
 
         （选用）可以采用lvm技术
@@ -149,7 +149,7 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
         #vgcreate gfs /dev/sdb1 ; vgextend gfs /dev/sdc1
         #lvcreate –n lv_gfs –L 3.27T /dev/gfs
 
-        直接格式化和挂载，后面使用flashcache技术进行加速 
+        直接格式化和挂载，后面使用flashcache技术进行加速
         #mkfs.xfs -i size=512 -n size=8192 -d su=256k,sw=3 /dev/gfs/lv_gfs
         #mount /dev/gfs/lv_gfs  /data
         此处，实例和生产尽量采用整盘分区的，并且后面实例不打算采用lvm-cache，而是采用falsh-cache，所有直接格式化磁盘，整盘作为brick使用。
@@ -157,16 +157,16 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
 
 ### 3.5 GlusterFS安装
 1. 升级操作系统，安装GlusterFS 软件包
-        
+
         # yum update
         # yum install -y centos-release-gluster
         # yum install -y glusterfs glusterfs-server glusterfs-fuse glusterfs-rdma
 3. 安装完成后启动GlusterFS
-	
+
         # systemctl start glusterd.service
         # systemctl enable glusterd.service
-	备注：设置不随机启动，添加的/etc/rc.local中进行启动，后续有详细步骤 
-        
+	备注：设置不随机启动，添加的/etc/rc.local中进行启动，后续有详细步骤
+
 ### 3.6 GlusterFS启动
 1. 主要进程表：
 
@@ -177,7 +177,7 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
 |glusterfsd|服务器端主要干活的，它接受服务器端的管理指令和客户端的数据请求，配合底层VFS和文件系统完成工作
 |glusterfs|运行于客户端，接收fuse的指令，因为客户端的APP都是通过FUSE和glusterfs通信的，它接收到请求后传给glusterfs，再通过RPC传给服务器端的gluserfsd Brick GFS中的存储单元，通过是一个受信存储池中的服务器的一个导出目录
 
-### 3.7 配置GlusterFS 
+### 3.7 配置GlusterFS
 1. 在node1节点上配置，将node2和node3节点加入到gluster集群中
 
         [root@node1 ~]# gluster peer probe node2
@@ -189,12 +189,12 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
         因为node1本机在集群中，所以只显示其他2个成员节点
 
 3. 创建GlusterFS目录(在三个节点上都运行):
-        
+
         # mkdir /glusterfs{,1}
 
 4. 挂载磁盘到对应目录，sdb1对应glusterfs，sdc1对应gluster1(在三个节点上都运行):
 
-        磁盘分区 
+        磁盘分区
         # mkfs.xfs /dev/sdb1; mkfs.xfs /dev/sdc1
         挂载磁盘到指定目录
         mount /dev/sdb1 /glusterfs ; mount /dev/sdc1 /glusterfs1
@@ -213,7 +213,7 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
         Status: Created   ## 状态
         Snapshot Count: 0   ## 快照
         Number of Bricks: 1 x 3 = 3  ##Brick 数量，1*3 表述 3副本
-        Transport-type: tcp            
+        Transport-type: tcp
         Bricks:                  ## 加入的brick和节点
         Brick1: node1:/glusterfs
         Brick2: node2:/glusterfs
@@ -223,15 +223,15 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
         [root@node1 ~]# gluster vol start Gluster-mod
         volume start: Gluster-mod: success
 
-### 3.8 客户端挂载验证    
+### 3.8 客户端挂载验证
 
 1. 创建挂载点
-        
+
         [root@client ~]# mkdir /glustermnt
 
 2. 安装gluster-fuse挂载软件包，不推荐使用其他方式挂载！
 
-        [root@client ~]# yum -y install gluster-fuse
+        [root@client ~]# yum -y install gluster-fuse  <----理解fuse的作用
 
 3. 挂载使用
 
@@ -258,7 +258,9 @@ Gluterfs总体採用堆栈式架构，模仿的函数调用栈，各个功能模
 >参考：操作指令和其他卷的创建方法还请参考”附录-GlusterFS“
 
 
+应用：
+ 文档、图片、音频、视频
+ 云存储、虚拟化存储、高性能计算(HPC)
+ 日志文件、RFID（射频识别）数据
 
-
-
-
+ 对1M起的文件很适合， 但是对小文件不适合
