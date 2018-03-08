@@ -356,7 +356,7 @@ Ceph集群中由PG映射到实际存储数据的OSD中，该映射规则是CRUSH
               mon osd full ratio = .98
               mon osd nearfull ratio = .80   <----不推荐，因为解决不了最终的问题，治标不治本，另外我没有在大数据量的生产验证过，所以无法估算影响面积！
 
-         PS-1：如果遇到osd down的状态，可以尝试使用 systemctl start ceph-osd@1.service 来启动，使用# ceph osd tree来确认状态，如果还是down的状态，建议查看/var/log/ceph/ 目录中的osd日志，来进行分析。
+         PS：如果遇到osd down的状态，可以尝试使用 systemctl start ceph-osd@1.service 来启动，使用# ceph osd tree来确认状态，如果还是down的状态，建议查看/var/log/ceph/ 目录中的osd日志，来进行分析。
 
 18. 磁盘不等，数据分布不均匀，数据在均衡（权重）
     * ceph的数据存储结构“file->object->pg->OSD->physics disk”，所以一旦PG设置过小，那么PG到OSD的映射不均，则会造成OSD数据分布不均。这样的问题还请参考前文，调节pg_num和pgp_num.
@@ -373,77 +373,77 @@ Ceph集群中由PG映射到实际存储数据的OSD中，该映射规则是CRUSH
 
       以下这部分内容用于灾难恢复，如果你没有足够的信心建议你不要去做，因为这有可能会使事情变得更糟糕。
 
-        1. 导出日志，任何有风险的操作前，都要进行备份。
-           [root@ceph-1 ~]# cephfs-journal-tool journal export backup-20180308.bin
-        2. 从日志恢复,此命令会把日志中可恢复的 inode/dentry 写入后端存储
-           [root@ceph-1 ~]# cephfs-journal-tool event recover_dentries summary
-        3. 日志截载，高风险，有可能回留下孤儿对象和破坏权限规则
-           [root@ceph-1 ~]# cephfs-journal-tool journal reset
-        4. 擦除MDS表，重置日志后，可能MDS表（InoTable、SessionMap、SnapServer）的内容就不再一致了
-           [root@ceph-1 ~]# cephfs-table-tool all reset session <----要重置 SessionMap
-           session可替换为其他需要重置的表，snap或者inode
-        5. MDS图重置，注意！有可能会丢失数据
-           [root@ceph-1 ~]# ceph fs reset testcephfs  --yes-i-really-mean-it
-           Error EINVAL: all MDS daemons must be inactive before resetting filesystem: set the cluster_down flag and use `ceph mds fail` to make this so
-           如果出现如下错误，需要在所有节点执行
-           # ceph mds cluster_down
-           然后执行 ：（这里是3个MDS的节点，所有要全部fail掉）
-           [root@ceph-1 ~]# ceph mds fail ceph-1
-           [root@ceph-1 ~]# ceph mds fail ceph-2
-           [root@ceph-1 ~]# ceph mds fail ceph-3
-        6. 元数据对象丢失的恢复（取决于丢失或被篡改的是哪种对象）
-           [root@ceph-1 ~]# cephfs-table-tool 0 reset session <----会话表
-           [root@ceph-1 ~]# cephfs-table-tool 0 reset snap    <----SnapServer 快照服务器
-           [root@ceph-1 ~]# cephfs-table-tool 0 reset inode    <---- InoTable 索引节点表
-           [root@ceph-1 ~]# cephfs-journal-tool --rank=0 journal reset  <---- Journal 日志
-           [root@ceph-1 ~]# cephfs-data-scan init    <---- 根索引节点（ / 和所有 MDS 目录）
+          1. 导出日志，任何有风险的操作前，都要进行备份。
+             [root@ceph-1 ~]# cephfs-journal-tool journal export backup-20180308.bin
+          2. 从日志恢复,此命令会把日志中可恢复的 inode/dentry 写入后端存储
+             [root@ceph-1 ~]# cephfs-journal-tool event recover_dentries summary
+          3. 日志截载，高风险，有可能回留下孤儿对象和破坏权限规则
+             [root@ceph-1 ~]# cephfs-journal-tool journal reset
+          4. 擦除MDS表，重置日志后，可能MDS表（InoTable、SessionMap、SnapServer）的内容就不再一致了
+             [root@ceph-1 ~]# cephfs-table-tool all reset session <----要重置 SessionMap
+             session可替换为其他需要重置的表，snap或者inode
+          5. MDS图重置，注意！有可能会丢失数据
+             [root@ceph-1 ~]# ceph fs reset testcephfs  --yes-i-really-mean-it
+             Error EINVAL: all MDS daemons must be inactive before resetting filesystem: set the cluster_down flag and use `ceph mds fail` to make this so
+             如果出现如下错误，需要在所有节点执行
+             # ceph mds cluster_down
+             然后执行 ：（这里是3个MDS的节点，所有要全部fail掉）
+             [root@ceph-1 ~]# ceph mds fail ceph-1
+             [root@ceph-1 ~]# ceph mds fail ceph-2
+             [root@ceph-1 ~]# ceph mds fail ceph-3
+          6. 元数据对象丢失的恢复（取决于丢失或被篡改的是哪种对象）
+             [root@ceph-1 ~]# cephfs-table-tool 0 reset session <----会话表
+             [root@ceph-1 ~]# cephfs-table-tool 0 reset snap    <----SnapServer 快照服务器
+             [root@ceph-1 ~]# cephfs-table-tool 0 reset inode    <---- InoTable 索引节点表
+             [root@ceph-1 ~]# cephfs-journal-tool --rank=0 journal reset  <---- Journal 日志
+             [root@ceph-1 ~]# cephfs-data-scan init    <---- 根索引节点（ / 和所有 MDS 目录）
 
-           根据数据存储池中的内容重新生成丢失文件和目录的元数据对象。首先扫描所有对象以计算索引节点的尺寸和 mtime 元数据；然后，从每个文件的第一个对象扫描出元数据并注入元数据存储池。
-           PS:所有运行 scan_extents 阶段的例程都结束后才能开始 scan_inodes
-           [root@ceph-1 ~]# cephfs-data-scan scan_extents "cephfs_data"   <----时间比较长
-           [root@ceph-1 ~]# cephfs-data-scan scan_inodes "cephfs_data"
-        7. 启动校验
-            [root@ceph-1 ~]# systemctl start ceph-mds.target  <----所有节点执行
-            [root@ceph-1 ~]# ceph mds cluster_up   <----所有节点执行
-            启动后挂载进行数据校验
+             根据数据存储池中的内容重新生成丢失文件和目录的元数据对象。首先扫描所有对象以计算索引节点的尺寸和 mtime 元数据；然后，从每个文件的第一个对象扫描出元数据并注入元数据存储池。
+             PS:所有运行 scan_extents 阶段的例程都结束后才能开始 scan_inodes
+             [root@ceph-1 ~]# cephfs-data-scan scan_extents "cephfs_data"   <----时间比较长
+             [root@ceph-1 ~]# cephfs-data-scan scan_inodes "cephfs_data"
+          7. 启动校验
+              [root@ceph-1 ~]# systemctl start ceph-mds.target  <----所有节点执行
+              [root@ceph-1 ~]# ceph mds cluster_up   <----所有节点执行
+              启动后挂载进行数据校验
 
 20. 删除osd
 
-        1. 踢除osd
-        [root@ceph-1 ~]# ceph osd out osd.6
-        [root@ceph-1 ~]# ceph osd out osd.7 <---- 尽可能的少
-        踢出集群后，Ceph会自动均衡数据，将被剔除的osd数据拷贝到别的osd上。
-        2. 观察数据迁移
-        [root@ceph-1 ~]# ceph -w
-        直到数据迁移返回状态到 “ active+clean ”
-        3. 停止osd并删除osd
-        [root@ceph-4 ~]# service ceph-osd@6 stop
-        [root@ceph-4 ~]# service ceph-osd@7 stop  <----对应的节点停止
-        此时ceph osd tree看到的状态为“down”
-        [root@ceph-1 ~]# ceph osd crush remove osd.6
-        [root@ceph-1 ~]# ceph osd crush remove osd.7
-        [root@ceph-1 ~]# ceph osd rm osd.6
-        [root@ceph-1 ~]# ceph osd rm osd.7
-        [root@ceph-1 ~]# ceph auth del osd.6
-        [root@ceph-1 ~]# ceph auth del osd.7
+          1. 踢除osd
+          [root@ceph-1 ~]# ceph osd out osd.6
+          [root@ceph-1 ~]# ceph osd out osd.7 <---- 尽可能的少
+          踢出集群后，Ceph会自动均衡数据，将被剔除的osd数据拷贝到别的osd上。
+          2. 观察数据迁移
+          [root@ceph-1 ~]# ceph -w
+          直到数据迁移返回状态到 “ active+clean ”
+          3. 停止osd并删除osd
+          [root@ceph-4 ~]# service ceph-osd@6 stop
+          [root@ceph-4 ~]# service ceph-osd@7 stop  <----对应的节点停止
+          此时ceph osd tree看到的状态为“down”
+          [root@ceph-1 ~]# ceph osd crush remove osd.6
+          [root@ceph-1 ~]# ceph osd crush remove osd.7
+          [root@ceph-1 ~]# ceph osd rm osd.6
+          [root@ceph-1 ~]# ceph osd rm osd.7
+          [root@ceph-1 ~]# ceph auth del osd.6
+          [root@ceph-1 ~]# ceph auth del osd.7
 
 > 删除集群
 
-        停止所有进程：sudo stop ceph-all
-        卸载所有ceph程序：ceph-deploy uninstall [{ceph-node}]
-        删除ceph相关的安装包：ceph-deploy purge {ceph-node} [{ceph-data}]
-        删除ceph相关的配置：ceph-deploy purgedata {ceph-node} [{ceph-data}]
-        删除key：ceph-deploy forgetkeys
-        卸载ceph-deploy管理：
-        yum -y remove ceph-deploy
+          停止所有进程：sudo stop ceph-all
+          卸载所有ceph程序：ceph-deploy uninstall [{ceph-node}]
+          删除ceph相关的安装包：ceph-deploy purge {ceph-node} [{ceph-data}]
+          删除ceph相关的配置：ceph-deploy purgedata {ceph-node} [{ceph-data}]
+          删除key：ceph-deploy forgetkeys
+          卸载ceph-deploy管理：
+          yum -y remove ceph-deploy
 
 ## 相关map查看
 
-        Mon Map： [root@ceph-1 ~]# ceph mon dump
-        OSD Map:  [root@ceph-1 ~]# ceph mon dump
-        PG Map:   [root@ceph-1 ~]# ceph pg dump | more
-        MDS Map:  [root@ceph-1 ~]# ceph mds dump
-        CRUSH Map: [root@ceph-1 ~]# ceph osd crush dump
+          Mon Map： [root@ceph-1 ~]# ceph mon dump
+          OSD Map:  [root@ceph-1 ~]# ceph mon dump
+          PG Map:   [root@ceph-1 ~]# ceph pg dump | more
+          MDS Map:  [root@ceph-1 ~]# ceph mds dump
+          CRUSH Map: [root@ceph-1 ~]# ceph osd crush dump
 ## 总结
 * 本章到这里，基本算是将Ceph安装完了，并且以CephFS的形式对外输出， 其实CephFS对外输出效果和NFS以及Samba都是集中的NAS存储，可以为企业提供集中NAS存储。
 * 其实这只是基础的基础，后面的内容将讲解Ceph RBD的输出，结合虚拟化对外提供服务。
