@@ -275,9 +275,9 @@ Ceph集群中由PG映射到实际存储数据的OSD中，该映射规则是CRUSH
         pool 'rbd' removed
 
         依据上面计算，PG总量是512，每个pool分取256.
-        [root@ceph-1 ceph]# ceph osd pool create cephfs_data 256
+        [root@ceph-1 ceph]# ceph osd pool create cephfs_data 256  <----数据存储
         pool 'cephfs_data' created
-        [root@ceph-1 ceph]# ceph osd pool create cephfs_metadata 256
+        [root@ceph-1 ceph]# ceph osd pool create cephfs_metadata 256 <----日志存储，影响客户端的操作延时。
         pool 'cephfs_metadata' created
 
         创建cephfs文件系统
