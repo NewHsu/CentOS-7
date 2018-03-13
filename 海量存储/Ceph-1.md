@@ -240,6 +240,10 @@ Ceph集群中由PG映射到实际存储数据的OSD中，该映射规则是CRUSH
         [root@ceph-1 ~]# ceph osd pool set rbd pgp_num 256
         set pool 0 pg_num to 256
 
+        更改副本数量 <---- 建议3副本，并且更改也是只高不低（切记！！！）
+        #ceph osd pool get <poolname> size
+        #ceph osd pool set <poolname> size 3
+
 11. 相关定义
 
         创建pool之前，需要覆盖默认的pg_num，官方推荐：
@@ -279,6 +283,8 @@ Ceph集群中由PG映射到实际存储数据的OSD中，该映射规则是CRUSH
         pool 'cephfs_data' created
         [root@ceph-1 ceph]# ceph osd pool create cephfs_metadata 256 <----日志存储，影响客户端的操作延时。
         pool 'cephfs_metadata' created
+
+        PS： 此处可做调优处理，将日志区建立在SSD磁盘之上，形成pool，这样会加快用户访问数据。因为用户写数据总是先写日志，在写数据，而数据是延迟写入，所以加快日志，就变相加快了响应速度。
 
         创建cephfs文件系统
         [root@ceph-1 ceph]# ceph fs new testcephfs cephfs_metadata cephfs_data
@@ -446,4 +452,5 @@ Ceph集群中由PG映射到实际存储数据的OSD中，该映射规则是CRUSH
           CRUSH Map: [root@ceph-1 ~]# ceph osd crush dump
 ## 总结
 * 本章到这里，基本算是将Ceph安装完了，并且以CephFS的形式对外输出， 其实CephFS对外输出效果和NFS以及Samba都是集中的NAS存储，可以为企业提供集中NAS存储。
+* 比如为企业提供集中的NAS存储，来存储非结构化数据和备份数据，以及为前端的业务系统提供NAS共享服务，为Hadoop提供大空间存储，都是较为不错的选择，只是有些大材小用了，毕竟Ceph还是很重的系统。
 * 其实这只是基础的基础，后面的内容将讲解Ceph RBD的输出，结合虚拟化对外提供服务。
