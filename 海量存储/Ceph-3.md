@@ -296,6 +296,16 @@
         3. 进行设置
 ![](../images/Ceph/13.png)
 
+>如果这时忘记了链接Ceph的S3的账户和密钥key，可以使用如下指令查询：
+
+        [root@ceph-1 ceph]# radosgw-admin metadata list user
+        [
+        "S3user"
+        ]
+        [root@ceph-1 ceph]# radosgw-admin user info --uid=S3user
 * 测试使用
 
-        通过页面进行上传
+        通过页面选择添加外部存储所设置的目录，进行上传测试。
+
+## 总结
+以上内容为Ceph的对象存储搭建和使用，其实对象存储很多内容，所以在第四章中，也会在讲讲这部分内容，针对CEPH的对象管理。
