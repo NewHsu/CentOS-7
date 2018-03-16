@@ -15,7 +15,7 @@
 
     * 对象存储和传统存储的区别简要如下：
         * 传统存储模式是将文件数据和元数据都存储在一起，没有做元数据和数据的单独区分，每个存储的block会告诉你下一个block位置在哪，换句话讲，即使你有每次读取1000个block的能力，但是实际上你也只能一个一个的去读取。
-        * 对象存储是将元数据独立起来存储，称之为“元数据服务器”，源数据服务器主要存储对象的属性（主要是对象的数据被打散存放到了那几台分布式服务器中的信息），如果这个时候你访问对象存储，首先和元数据服务器做交互，拿到这个分布的地图，然后直接访问地图中的位置，并且是分布式的同时读取，那么速度上是不是快了很多？
+        * 对象存储是将元数据独立起来存储，称之为“元数据服务器”，元数据服务器主要存储对象的属性（主要是对象的数据被打散存放到了那几台分布式服务器中的信息），如果这个时候你访问对象存储，首先和元数据服务器做交互，拿到这个分布的地图，然后直接访问地图中的位置，并且是分布式的同时读取，那么速度上是不是快了很多？
         * 对象存储还需要具备对象存储管理软件，正是利用以上特点，将块存储和文件存储做了美妙的结合。
 
 3. 为什么使用对象存储？
@@ -34,6 +34,14 @@
 ![](../images/Ceph/11.png)
 
 * Ceph 对象存储使用 Ceph 对象网关守护进程（ radosgw ），它是个与 Ceph 存储集群交互的 FastCGI 模块。因为它提供了与 OpenStack Swift 和 Amazon S3 兼容的接口， RADOS 要有它自己的用户管理。 Ceph 对象网关可与 Ceph FS 客户端或 Ceph 块设备客户端共用一个存储集群。 S3 和 Swift 接口共用一个通用命名空间，所以你可以用一个接口写如数据、然后用另一个接口取出数据。
+
+6. 术语
+
+* accesskey、secretkey：S3的密钥key，accesskey进行身份识别、secretkey进行数字签名，共同完成应用接入的授权认证。
+* bucket：逻辑存储空间、用于存放对象的容器，对象必须存储在特定的bucket中。每个bucket可以存放无限制个对象，但是bucket之下不能在创建bucket。
+* service：S3提供给用户的存储，其中可以包含1到N个bucket。
+* region ：标识物理位置
+* object：对象，泛指一个文档、图片或视频文件等，尽管用户可以直接上传一个目录，但是ceph并不按目录层级结构保存对象， ceph所有的对象扁平化的保存在bucket中。
 
 ## 利用Ceph 对象网关实现开源云盘系统（OwnCloud 社区版）
 
@@ -151,23 +159,27 @@
         .users.swift
         .users.uid
 
+* 建议删除默认创建的pool
+
+        ceph osd pool delete .rgw.root .rgw.root --yes-i-really-really-mean-it
+        使用命令，依次循环删除原有pool，重新创建，设置合理的pg和pgp
 * 您也可以手动创建各个存储池：
 
-    ceph osd pool create {poolname} {pg-num} {pgp-num} {replicated | erasure} [{erasure-code-profile}]  {ruleset-name} {ruleset-number}
-    范例如下：
-        ceph osd pool create .rgw 128 128
-        ceph osd pool create .rgw.root 128 128
-        ceph osd pool create .rgw.control 128 128
-        ceph osd pool create .rgw.gc 128 128
-        ceph osd pool create .rgw.buckets 128 128
-        ceph osd pool create .rgw.buckets.index 128 128
-        ceph osd pool create .log 128 128
-        ceph osd pool create .intent-log 128 128
-        ceph osd pool create .usage 128 128
-        ceph osd pool create .users 128 128
-        ceph osd pool create .users.email 128 128
-        ceph osd pool create .users.swift 128 128
-        ceph osd pool create .users.uid 128 128
+        ceph osd pool create {poolname} {pg-num} {pgp-num} {replicated | erasure} [{erasure-code-profile}]  {ruleset-name} {ruleset-number}
+        范例如下：（不要抄袭，一定要按照自己的pg和pgp设置）
+                ceph osd pool create .rgw 128 128    
+                ceph osd pool create .rgw.root 128 128   <----bucket 元数据信息  
+                ceph osd pool create .rgw.control 128 128 <----该pool上创建若干个普通对象用于watch-notify
+                ceph osd pool create .rgw.gc 128 128 <---- 该pool用于记录那些待删除的文件对象
+                ceph osd pool create .rgw.buckets 128 128 <---- 存放数据
+                ceph osd pool create .rgw.buckets.index 128 128 <---- 存储bucket的文件索引对象。
+                ceph osd pool create .log 128 128 <---- 用于存储3种类型log，oplog，meta_log，data_log
+                ceph osd pool create .intent-log 128 128 <---- 未使用
+                ceph osd pool create .usage 128 128 <---- 存储计量数据统计
+                ceph osd pool create .users 128 128 <---- 用于存储用户AK和uid的对应关系
+                ceph osd pool create .users.email 128 128 <---- 用于存储用户email和uid的对应关系
+                ceph osd pool create .users.swift 128 128 <---- 用于存储swift key和uid的对应关系
+                ceph osd pool create .users.uid 128 128  <---- 用于存储用户信息，每个用户都有一个唯一的uid作为对象名
 > 实验是选择的默认创建，生产中要进行规划，自行创建，一定要计算好pg的值。
 
 3. 添加rgw配置 -- Civetweb --
