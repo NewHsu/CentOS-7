@@ -185,11 +185,11 @@
 3. 添加rgw配置 -- Civetweb --
 
         [root@ceph-1 ceph]# vim /etc/ceph/ceph.conf
-        [client.radosgw.gateway]
+        [client.radosgw.gateway]    <----和keyring内的名称要一致
         host = {hostname}
         keyring = /etc/ceph/ceph.client.radosgw.keyring
         log file = /var/log/radosgw/client.radosgw.gateway-node1.log
-        rgw_frontends = civetweb port=80     <----默认7480，已经更改为80了，所以这里对应上。
+        rgw_frontends = civetweb port=80     <----默认7480，已经更改为80了，实例1。
 
 * --- Nginx ---
 
