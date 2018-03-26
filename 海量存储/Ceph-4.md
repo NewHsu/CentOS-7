@@ -201,6 +201,7 @@
                 systemctl restart ceph-radosgw@rgw.ceph-4.service
 >以上为止，所有的东西都处理完成了，可以利用owncloud将2个存储都挂载上，这时候在一侧传东西，另外一侧就会看到，当然，这需要一个同步的时间。
 * 这个上述实例中配置较为复杂，如果配置错了怎么处理？ 
+ 
                 * 上述关键点在于realm、zonegroup、zone的配置
                 * 查看配置可以使用 ： radosgw-admin realm|zonegroup|zone list --rgw=realm|zonegroup|zone  (name)
                 * 配置错误可以使用 modify 修改或者干脆直接删除 delete 
