@@ -1,4 +1,4 @@
-#Ceph - 调优相关
+#Ceph - Ceph+SSD
 
 * 分布式存储Ceph如果想要进行大规模的使用和在生产中使用的优雅顺畅，那么调优是必不可少的环节，下面将介绍一些常用的调优手段，针对整体进行调优，更多的细节还是需要在场景中进行测试，逐步进行调节，然后达到最优的性能。
 
@@ -19,7 +19,7 @@
 
         # ceph-deploy disk zap ceph-4:sdd:/dev/sdb
         # ceph-deploy disk zap ceph-4:sdc:/dev/sdb    <----这里假设sdb是SSD
-
+    
         # ceph-deploy osd prepare ceph-4:sdd:/dev/sdb
         # ceph-deploy osd prepare ceph-4:sdc:/dev/sdb   <----每个数据盘单独的SSD分区
 
@@ -31,7 +31,7 @@
 * 这里引出另外一个问题，如果是需要访问其余的数据，会不会很慢？思考一下Ceph的副本读取方式。
 * Ceph每次都是读取主osd的数据，只有在有问题的时候，才会选择其余的OSD数据，所以优化一下这个混用的方式。
 * 而且这个数据是有风险的，所有的数据都在SSD上，并不在机械磁盘上，如果出现问题，可能没有办法找回数据了。要知道现在的SSD寿命还是短于机械磁盘的。 
- 
+
 ![](../images/Ceph/18.png)
 
 * 步骤如下：（Ceph-4模拟Ceph集群，osd.0和osd.1为ssd磁盘，osd.2为sata盘）
@@ -39,25 +39,25 @@
         1. 在Ceph集群中，添加ceph-4-ssd 和ceph-4-sata 的 host
         [root@ceph-4 ~]# ceph osd crush add-bucket ceph-4-ssd host
         [root@ceph-4 ~]# ceph osd crush add-bucket ceph-4-sata host
-
+    
         2. 创建ssd root 和 sata root
         [root@ceph-4 ~]# ceph osd crush add-bucket ssd root
         [root@ceph-4 ~]# ceph osd crush add-bucket sata root
-
+    
         3. 移动host到对应的ssd和sata中
         [root@ceph-4 ceph]# ceph osd crush move ceph-4-ssd  root=ssd
         [root@ceph-4 ceph]# ceph osd crush move ceph-4-sata  root=sata
-
+    
         4. 移动osd到对应的hosts中 （osd.0和osd.1属于ssd，osd.2属于sata）
         [root@ceph-4 ceph]# ceph osd crush set osd.0 1.0 host=ceph-4-ssd
         [root@ceph-4 ceph]# ceph osd crush set osd.1 1.0 host=ceph-4-ssd
         [root@ceph-4 ceph]# ceph osd crush set osd.2 1.0 host=ceph-4-sata
-
+    
         5. 导出crushmap进行编辑，添加规则
         [root@ceph-4 ceph]# ceph osd getcrushmap -o 1.txt  <----导出
         [root@ceph-4 ceph]# crushtool -d 1.txt -o 2.txt <----转为可读
         [root@ceph-4 ceph]# vim 2.txt   <----进行编辑
-
+    
         6. 添加规则
         rule ssd {
                 ruleset 1
@@ -77,17 +77,17 @@
                 step chooseleaf firstn 0 type host
                 step emit
         }
-
+    
         7. 生成新的map，导入集群
         [root@ceph-4 ceph]# crushtool -c 2.txt -o ssd_map
         [root@ceph-4 ceph]# ceph osd setcrushmap -i ssd_map
-
+    
         8. 创建pool，关联到不同规则
         [root@ceph-4 ceph]# ceph osd pool create ssd 512 512
         [root@ceph-4 ceph]# ceph osd pool create sata  512 512
         [root@ceph-4 ceph]# ceph osd pool set ssd crush_ruleset 1
         [root@ceph-4 ceph]# ceph osd pool set ssd crush_ruleset 2
-
+    
         9. 查看pool详细信息
         [root@ceph-4 ceph]# ceph osd pool ls detail
 
@@ -132,7 +132,7 @@
         [root@ceph-4 ceph]# ceph osd pool set ssd.cache crush_ruleset 1
         [root@ceph-4 ceph]# ceph osd pool create sata-pool  256 256
         [root@ceph-4 ceph]# ceph osd pool set sata-pool  crush_ruleset 2
-
+    
         2. 创建cache tiring 模式
         [root@ceph-4 ceph]# ceph osd tier add sata-pool ssd.cache  <----管理缓存和和存储池
         [root@ceph-4 ceph]# ceph osd tier cache-mode ssd.cache writeback <----设置writeback缓存模式
@@ -146,12 +146,11 @@
         #  ceph osd pool set ssd.cache hit_set_type bloom 
 
 2. hit_set_count和hit_set_period定义了HiSet达到的次数和HitSets存储的时间，把超时的数据丢弃的方法，允许Ceph决定一个客户端可以取出一个对象一次，还是在一个时间段取出多次（“时间”和“热度”）
-		
+   	
         #  ceph osd pool set ssd.cache hit_set_count 1
         #  ceph osd pool set ssd.cache hit_set_period 1800  
         #  ceph osd pool set ssd.cache target_max_bytes 30000000000 
-	
-		
+
 3. 在writeback模式下，读操作未命中时，min_read_recency_for_promote 该值默认情况下为1，如果近期访问过，说明object比较热，可以提升到cache 中。统计时间越长、 min_read_recency_for_promote 或 min_write_recency_for_promote 取值越高， ceph-osd 进程消耗的内存就越多，特别是代理正忙着刷回或赶出对象时，此时所有 hit_set_count 个 HitSet 都要载入内存。
 		
         #  ceph osd pool set ssd.cache min_read_recency_for_promote 1
@@ -168,13 +167,11 @@
 1. 相对大小：
 		
 * 缓存代理刷新/清除对象和缓冲池大小有关。当缓存池达到一定比例的变动对象时，缓存代理会刷新数据，把这部分数据存储到后端存储池中。设置cache_target_dirty_ratio执行如下： 
-        
+          
         #  ceph osd pool set ssd.cache cache_target_dirty_ratio .4
-	设置值为0.4，当变动的对象达到缓冲池(the cache pool)容量的40%时，就刷新缓存#  ceph osd pool set ssd.cache cache_target_dirty_high_ratio .6
-	当缓冲池达到一定百分百的容量时，缓存代理会清除一些对象来维持一定空闲的存储空间#  ceph osd pool set ssd.cache cache_target_full_ratio .8
-	设置值为0.8，当达到缓冲池容量的80%时，就会清除缓存中一些未变动的数据
-		
-		
+    设置值为0.4，当变动的对象达到缓冲池(the cache pool)容量的40%时，就刷新缓存#  ceph osd pool set ssd.cache cache_target_dirty_high_ratio .6
+    当缓冲池达到一定百分百的容量时，缓存代理会清除一些对象来维持一定空闲的存储空间#  ceph osd pool set ssd.cache cache_target_full_ratio .8
+    设置值为0.8，当达到缓冲池容量的80%时，就会清除缓存中一些未变动的数据	
 2. 绝对大小：
 
         # ceph osd pool set ssd.cache target_max_bytes 1000000000000  <----字节 （1T）
@@ -194,7 +191,7 @@
         # ceph osd pool set ssd.cache cache_min_evict_age 1800   <----秒（30分钟）
 
 > 以上设置都可以通过 `# ceph osd pool ls detail` 进行查看
-		
+
 * 清除缓存层
 1. read-only：不存在修改数据，都是读取数据，所以可以直接清除缓存内容
 	* 禁用  # ceph osd tier cache-mode ssd.cache none

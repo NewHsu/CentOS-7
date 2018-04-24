@@ -36,7 +36,7 @@
         
         [root@ceph-1 ceph]# s3cmd mb s3://my-test-bucket
         Bucket 's3://my-test-bucket/' created
-
+    
         [root@ceph-1 ceph]# radosgw-admin buckets list
         [
             "my-test-bucket",
@@ -93,7 +93,7 @@
          
                 ceph-2 主机执行：
                 # for i in `ceph osd pool ls | grep .`; do ceph osd pool delete $i $i  --yes-i-really-really-mean-it;done
-
+        
                 # ceph osd pool create .rgw.root 16 16
                 # ceph osd pool create zone_master_xcl.rgw.control 16 16
                 # ceph osd pool create zone_master_xcl.rgw.data.root 16 16
@@ -108,10 +108,10 @@
                 # ceph osd pool create zone_master_xcl.rgw.buckets.index 32 32
                 # ceph osd pool create zone_master_xcl.rgw.buckets.data 32 32
                 # ceph osd pool create zone_master_xcl.rgw.meta 16 16
-
+        
                 ceph-4 主机执行：
                 # for i in `ceph osd pool ls | grep .`; do ceph osd pool delete $i $i  --yes-i-really-really-mean-it;done
-
+        
                 # ceph osd pool create .rgw.root 16 16
                 # ceph osd pool create zone_secondary_xcl.rgw.meta 16 16
                 # ceph osd pool create zone_secondary_xcl.rgw.control 16 16
@@ -127,12 +127,13 @@
                 # ceph osd pool create zone_secondary_xcl.rgw.buckets.index 32 32
                 # ceph osd pool create zone_secondary_xcl.rgw.buckets.data 32 32
         4. 创建realm 、synchronization-user（同步用户）、zonegroup、zone
-
+        
                 ceph-2主机操作：（Ceph-2这个主机做了一些修改，对外服务的端口调整到88了，同步用的端口调整到80，当然也可以利用原有80，这里多加了一个实例而已）
                 # radosgw-admin realm create --rgw-realm=realm_xcl --default
                 # radosgw-admin zonegroup create --rgw-zonegroup=xcl --endpoints=http://ceph-2:80 --rgw-realm=realm_xcl --master --default
-                # radosgw-admin user create --uid="synchronization-user" --display-name="Synchronization User" --system       <----记录下key
                 # radosgw-admin zone create --rgw-zonegroup=xcl --rgw-zone=zone_master_xcl --master --default --endpoints=http://ceph-2:80
+                # radosgw-admin user create --uid="synchronization-user" --display-name="Synchronization User" --system       <----记录下key
+                
                 
                 清除原有默认配置
                 # radosgw-admin zonegroup remove --rgw-zonegroup=default --rgw-zone=default
@@ -141,26 +142,26 @@
                 # radosgw-admin period update --commit
                 # radosgw-admin zonegroup delete --rgw-zonegroup=default
                 # radosgw-admin period update --commit
-
+        
                 清除原有多余的pool
                 # rados rmpool default.rgw.control default.rgw.control --yes-i-really-really-mean-it
                 #rados rmpool default.rgw.data.root default.rgw.data.root --yes-i-really-really-mean-it
                 #rados rmpool default.rgw.gc default.rgw.gc --yes-i-really-really-mean-it
                 #rados rmpool default.rgw.log default.rgw.log --yes-i-really-really-mean-it
                 #rados rmpool default.rgw.users.uid default.rgw.users.uid --yes-i-really-really-mean-it
-
+        
                 增加同步用户
                 # radosgw-admin zone modify --rgw-zone=zone_master_xcl --access-key=U3PM234OAS5TZOD4IGWO --secret=V5exIikkI9BI2aqNePFaRZLt2h6u904xblbD6GEf
-
+        
                 更新数据
                 # radosgw-admin period update --commit
-
+        
                 调整对应的实例ceph.conf
                 [client.rgw.ceph-2]
                 host = ceph-2
                 rgw_zone=zone_master_xcl     <----一定注意是这么写！！！
                 rgw_frontends = civetweb port=80
-
+        
                 [client.radosgw.gateway.ceph-2]
                 host = ceph-2
                 keyring = /etc/ceph/ceph.client.radosgw.keyring
@@ -172,18 +173,18 @@
                 # radosgw -c /etc/ceph/ceph.conf -n client.radosgw.gateway.ceph-2
                 ceph-2实例：
                 # systemctl start ceph-radosgw@rgw.ceph-2.service
-
+        
         5. ceph-4主机操作：
-
+        
                 realm pull到ceph-2:80,并设置对应的access和secret密钥
                 # radosgw-admin realm pull --url=http://ceph-2:80 --access-key=U3PM234OAS5TZOD4IGWO --secret=V5exIikkI9BI2aqNePFaRZLt2h6u904xblbD6GEf
-
+        
                 设置realm_xcl为default
                 # radosgw-admin realm default --rgw-realm=realm_xcl
-
+        
                 设置同步账户
                 # radosgw-admin zone create --rgw-zonegroup=xcl --rgw-zone=zone_secondary_xcl --access-key=U3PM234OAS5TZOD4IGWO --secret=V5exIikkI9BI2aqNePFaRZLt2h6u904xblbD6GEf --endpoints=http://ceph-4:80
-
+        
                 删除默认zone
                 # radosgw-admin zone delete --rgw-zone=default
                 
@@ -193,15 +194,21 @@
                 # rados rmpool default.rgw.gc default.rgw.gc --yes-i-really-really-mean-it
                 # rados rmpool default.rgw.log default.rgw.log --yes-i-really-really-mean-it
                 # rados rmpool default.rgw.users.uid default.rgw.users.uid --yes-i-really-really-mean-it
-
+        
                 更新
                 # radosgw-admin period update --commit
-
+                
+                配置修改
+                [client.rgw.ceph-4]     ----》 测试到这里了！！！
+                host = ceph-4
+                rgw_zone=zone_secondary_xcl     <----一定注意是这么写！！！
+                rgw_frontends = civetweb port=80
+                
                 启动
                 systemctl restart ceph-radosgw@rgw.ceph-4.service
 >以上为止，所有的东西都处理完成了，可以利用owncloud将2个存储都挂载上，这时候在一侧传东西，另外一侧就会看到，当然，这需要一个同步的时间。
 * 这个上述实例中配置较为复杂，如果配置错了怎么处理？ 
- 
+
                 * 上述关键点在于realm、zonegroup、zone的配置
                 * 查看配置可以使用 ： radosgw-admin realm|zonegroup|zone list --rgw=realm|zonegroup|zone  (name)
                 * 配置错误可以使用 modify 修改或者干脆直接删除 delete 
@@ -220,7 +227,7 @@
                 4. 开启ceph-2主机上的同步实例，再次使用s3cmd进行创建即可成功
         * 但是这会出现一个问题，如果master长时间没有响应，或者需要很长时间修复，这个时间段要如何新增bucket？是不是该进行master 和 secondary的角色转换了？
                 1. 切换角色
-
+    
                         [root@ceph-4 ~]# radosgw-admin zone modify --rgw-zone=zone_secondary_xcl  --master --default
                         [root@ceph-4 ~]# radosgw-admin period update --commit
                         [root@ceph-4 ~]# systemctl restart ceph-radosgw@rgw.ceph-4.service
@@ -236,10 +243,9 @@
         另外一侧为：metadata sync syncing
 
 > 注意：
-        
+
         在更改哪个区域是元数据 Master 时必须小心。如果一个区域没有从目前的主区域完成同步元数据，它将无法提供未同步的剩余的条目，晋升为Master，这些更改将会丢失。为此，需要等待radosgw同步元数据完成。
         类似地，如果当前Mater zone正在处理元数据的更改，而另一个区域正在被提升为Master，那么这些更改很可能会丢失。为了避免这种情况，关闭radosgw实例的建议。提升之后一个区后，再重新启动。
-
 
 ## 总结：
 到现在位置RGW算是勉强可以支撑运行，但是还是有很多细节，无法一一展现，在上线使用之前，一定要多多进行测试。

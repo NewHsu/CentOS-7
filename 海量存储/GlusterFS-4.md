@@ -3,7 +3,8 @@
 
   1. 节点状态
 
-          # gluster peer status
+       # gluster peer status
+
           Number of Peers: 2
           Hostname: server1
           Uuid: 5e987bda-16dd-43c2-835b-08b7d55e94e5
@@ -13,7 +14,8 @@
           State: Peer in Cluster (Connected)
   2. 添加节点
 
-          #gluster peer probe HOSTNAME
+       #gluster peer probe HOSTNAME
+
           #gluster peer probe node2 //将node2 添加到存储池中
   3. 删除节点
 
@@ -32,21 +34,21 @@
 2. 复制卷
 
         # gluster volume create NEW¬VOLNAME [replica COUNT] [transport [tcp |rdma | tcp,rdma]] NEW¬BRICK...
-
+    
         # gluster volume create test¬volume replica 2 transport tcp node1:/exp1 node2:/exp2
 
 3. 条带卷
 
         # gluster volume create NEW¬VOLNAME [stripe COUNT] [transport [tcp |
         rdma | tcp,rdma]] NEW¬BRICK...
-
+    
         # gluster volume create test¬volume stripe 2 transport tcp node1:/exp1 node2:/exp2
 
 4. 分佈式条带卷（復合型）
 
         # gluster volume create NEW¬VOLNAME [stripe COUNT] [transport [tcp |
         rdma | tcp,rdma]] NEW¬BRICK...
-
+    
         # gluster volume create test¬volume stripe 4 transport tcp node1:/exp1 node2:/exp2
         node3:/exp3 node4:/exp4 node5:/exp5 node6:/exp6 node7:/exp7 node8:/exp8
 
@@ -54,16 +56,16 @@
 
         # gluster volume create NEW¬VOLNAME [replica COUNT] [transport [tcp |
         rdma | tcp,rdma]] NEW¬BRICK...
-
+    
         # gluster volume create test¬volume replica 2 transport tcp node1:/exp1 node2:/exp2 node3:/exp3 node4:/exp4
-
+    
         # gluster volume create test¬volume replica 2 transport tcp node1:/exp1 node2:/exp2 node3:/exp3 node4:/exp4 node5:/exp5 node6:/exp6
 
 6. 条带復制卷（復合型）
 
         # gluster volume create NEW¬VOLNAME [stripe COUNT] [replica COUNT]
         [transport [tcp | rdma | tcp,rdma]] NEW¬BRICK...
-
+    
         # gluster volume create test¬volume stripe 2 replica 2 transport tcp node1:/exp1
         node2:/exp2 node3:/exp3 node4:/exp4
 
@@ -75,7 +77,7 @@
 
         # gluster volume create NEW¬VOLNAME [stripe COUNT] [replica COUNT]
         [transport [tcp | rdma | tcp,rdma]] NEW¬BRICK...
-
+    
         # gluster volume create test¬volume stripe 2 replica 2 transport tcp node1:/exp1
         node2:/exp2 node3:/exp3 node4:/exp4 node5:/exp5 node6:/exp6 node7:/exp7
         node8:/exp8
@@ -147,3 +149,4 @@
     8. FUSE Mount: /var/log/glusterfs/<mountpoint path extraction>.log
     9. Geo-replication: /var/log/glusterfs/geo-replication/<master>   /var/log/glusterfs/geo-replication-slaves
     10. Gluster volume heal VOLNAME info command: /var/log/glusterfs/glfsheal-VOLNAME.log
+
