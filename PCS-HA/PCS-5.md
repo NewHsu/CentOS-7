@@ -43,7 +43,7 @@
         1. 集群中只存在一个主节点。 正是因为这样在集群中只能有一个节点可以随时操作数据，对应的文件系统（EXT3、EXT4、XFS等等）。
         2. 集群当前操作数据的几点会被设置为”主动”，而另一侧则是”被动”，当主动出现问题，则会迁移到被动节点，并将”被动”设置为”主动”
         3. DRBD 单主节点模式可保证集群的高可用性（fail-over 遇故障转移的能力）
-2.	双主模式
+	.	双主模式
 
         1. DRBD 8.0 版本以后才支持双主模式
         2. 集群中资源存在两个主节点
@@ -110,11 +110,11 @@
        
         2.初始化设备，node1 和 node2主机执行
         # drbdadm create-md  data -c /etc/drbd.conf #中途提示输入”yes”
-
+    
         3.启动DRBD和开机启动
         [root@node2 ~]# systemctl restart drbd.service
         [root@node2 ~]# systemctl enable drbd.service
-
+    
         4.查看启动后状态，双侧状态都为secondary，因为没有设置主设备，所以这个状态还不能使用
         [root@node2 ~]# cat /proc/drbd
         version: 8.4.10-1 (api:1/proto:86-101)
@@ -124,10 +124,10 @@
             [>....................] sync'ed:  2.6% (7980/8188)M
             finish: 0:12:29 speed: 10,908 (8,832) want: 16,440 K/sec
         注意此处，双侧主机都是Secondary/Secondary，需要设置一个主节点。
-
+    
         5.设置主设备（node1 为主）
         [root@node1 ~]# drbdadm primary --force  data -c /etc/drbd.conf
-
+    
         6.查看DRBD同步
         [root@node2 ~]# cat /proc/drbd
         version: 8.4.10-1 (api:1/proto:86-101)
@@ -137,25 +137,25 @@
             [>....................] sync'ed:  3.3% (7928/8188)M
             finish: 0:10:24 speed: 12,984 (9,908) want: 18,400 K/sec
         多次查看，直到同步完成。
-
+    
         7.DRBD重用操作指令
             1. 状态查看
             [root@node1 ~]# drbdadm status
             [root@node2 ~]# drbd-overview
-
+    
             2. 查看配置文件dump
             [root@node1 ~]# drbdadm dump
-
+    
             3. 主节点执行，全部置为secondary 
             [root@node1 ~]# drbdadm secondary all
-
+    
             4. 设置主节点
             [root@node1 ~]# drbdadm primary --force  data -c /etc/drbd.conf
-
+    
             5. 切换步骤，先卸载挂载，主降级secondary，备升级primary，挂载使用
             [root@node1 ~]# drbdadm secondary data
             [root@node2 ~]# drbdadm primary data
-
+    
         8.DRBD脑裂处理流程（仅供参考，数据无价，还请及时备份）
             1. 查看/proc/drbd文件，确认drbd双侧主机状态
                 主节点的连接状态始终为 StandAlone ，主节点显示备节点为 Unknown
@@ -166,22 +166,22 @@
                 [root@node2 ~]# drbdadm --discard-my-data connect data
                 ##告诉slave，secondary 上的数据不正确，以primary 上的数据为准
             3. 等待同步结束，在进行修复之前，一定要先确认是什么问题引起的脑裂，不然问题会更加严重。
-                 
+   
 
 ### 4.5 PCS集群配置
 
 1. 创建DRBD资源
-    
+  
         创建集群配置
         [root@node2 ~]# pcs cluster cib drbd_cfg
         创建资源drbd，引用drbd的data数据源，60秒监控
         [root@node2 ~]# pcs -f drbd_cfg resource create Data ocf:linbit:drbd   drbd_resource=data op monitor interval=60s
-
+    
         创建clone资源，master-max=1，可将多少资源副本提升至 master 状态。master-node-max=1 在单一节点中可将多少资源副本推广至 master 状态。
         clone-max=2 需要多少资源副本方可启动。默认为该集群中的节点数。
         clone-node-max=1 需要多少资源副本方可在单一节点中启动。
         [root@node2 ~]# pcs -f drbd_cfg resource master DataClone Data  master-max=1 master-node-max=1 clone-max=2 clone-node-max=1 notify=true
-
+    
         更新集群信息
         [root@node2 ~]# pcs cluster cib-push drbd_cfg
         [root@node2 ~]# pcs status （采用PCS集群实例环境，所以你会看到多资源组。）
@@ -230,21 +230,21 @@
         NFS	(ocf::heartbeat:Filesystem):	Started node1
 
 >别忘记将主机在unstandby回来
-    
+
     Pcs cluster unstandby node2
 
 ### 4.6 PCS NFS共享配置	
 1.	创建NFS服务所需要的VIP
 
         [root@node2 ~]# pcs resource create nfs_ip IPaddr2 ip=192.168.56.150 cidr_netmask=24
-2.	将VIP 和 DRBD 的MASTER 捆绑运行，必须这么做，要不然各自跑在不同机器上就会有问题，你晓得的，文件系统无法挂起，IP无法工作在正确的机器上。
+	.	将VIP 和 DRBD 的MASTER 捆绑运行，必须这么做，要不然各自跑在不同机器上就会有问题，你晓得的，文件系统无法挂起，IP无法工作在正确的机器上。
 
         [root@node2 ~]# pcs constraint colocation add nfs_ip DataClone INFINITY with-rsc-role=Master
-3.	将文件系统和VIP添加到同一个group中，在同一主机运行
+	.	将文件系统和VIP添加到同一个group中，在同一主机运行
 
         [root@node2 ~]# pcs resource group add nfsshare nfs_ip NFS
         这样的做法很简单，VIP 和 NFS 在同一组，即可工作在同一主机，而DRBD的MASTER不能加入group中，所以我们要捆绑他和VIP在一个主机工作，也就是VIP 和NFS 文件系统在一起工作，而VIP又和DRBD在一起工作，这样即可完美解决DRBD不协调导致NFS文件系统无法挂起问题。
-4.	创建NFS daemon 资源共享NFS文件夹，并添加到NFS 其他资源所在的group
+	.	创建NFS daemon 资源共享NFS文件夹，并添加到NFS 其他资源所在的group
 
         [root@node2 ~]# pcs resource create nfs-daemon nfsserver nfs_shared_infodir=/nfsdata nfs_no_notify=true  --group nfsshare
         [root@node2 ~]# pcs status
@@ -256,7 +256,7 @@
             NFS	(ocf::heartbeat:Filesystem):	Started node1
             nfs-daemon	(ocf::heartbeat:nfsserver):	Started node1
 
-5.	将共享的目录输出访问，并定义哪些地址可以访问，以及设置相关权限
+	.	将共享的目录输出访问，并定义哪些地址可以访问，以及设置相关权限
 
         [root@node2 ~]# pcs resource create nfs-root exportfs clientspec=* options=rw,sync,no_root_squash directory=/nfsdata fsid=0  --group nfsshare
         [root@node2 ~]# pcs status
@@ -268,7 +268,7 @@
             NFS	(ocf::heartbeat:Filesystem):	Started node1
             nfs-daemon	(ocf::heartbeat:nfsserver):	Started node1
             nfs-root	(ocf::heartbeat:exportfs):	Started node1
-6.	添加NFS集群消息通知资源，有了它才能正常工作，source地址写VIP即可
+	.	添加NFS集群消息通知资源，有了它才能正常工作，source地址写VIP即可
 
         [root@node2 ~]# pcs status
         Master/Slave Set: DataClone [Data]
@@ -295,7 +295,7 @@
         192.168.56.150:/nfsdata on /testnfs type nfs (rw,relatime,vers=3,rsize=131072,wsize=131072,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,mountaddr=192.168.56.150,mountvers=3,mountport=20048,mountproto=udp,local_lock=none,addr=192.168.56.150)
 ### 4.8 NFS切换测试
 1. 将正在运行的node1置于standby状态
-    
+  
         [root@node2 ~]# pcs cluster standby node1
 3. 再次查看是否在ywdb2上启动成功
 
