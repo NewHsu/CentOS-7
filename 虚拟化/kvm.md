@@ -117,13 +117,13 @@ QEMU：运行在用户空间层，提供硬件 I/O 虚拟化。
 * KVM 虚拟化的热迁移需要有NFS或者是glusterfs等共享文件系统的支持，将vm虚拟化磁盘文件放到共享文件上，然后主机节点只负责计算，存储在文件系统上，迁移的时候另外一台kvm host主机直接读取共享文件系统的文件即可。
 * 双侧主机互相添加kvm节点链接，Kvm管理器中点击：File > Add Connection 
 
-![](./images/KVM/2.png)
+![](../images/KVM/2.png)
 
 >如果未安装软件还请确认并安装必备的kvm软件包
 
 * 添加成功后
 
-![](./images/KVM/4.png)
+![](../images/KVM/4.png)
 
 ### Nfs share 设置
 * 修改配置并挂载
