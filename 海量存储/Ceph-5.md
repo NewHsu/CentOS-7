@@ -205,4 +205,5 @@
 	* 移除缓冲池 # ceph osd tier remove sata-pool ssd.cache  
 
 ## 总结
-后续补全，太累了！
+        结合SSD不是选项，而是必选项！没有SSD的Ceph就相当于没有人没了灵魂！
+        结合SSD的场景一定要牢记。

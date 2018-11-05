@@ -22,7 +22,7 @@
 
   - Ceph实现并且提供了包括对象、块设备、和文件的存储服务，拥有高可靠、易于管理、开源等特点。如果使用Ceph作为存储架构，无论是在扩展性还是在可靠性上都能得到极大提升。
 
-  [![img](https://github.com/NewHsu/CentOS-7/raw/master/images/ceph/1.png)](https://github.com/NewHsu/CentOS-7/blob/master/images/ceph/1.png)
+  [![img](../images/ceph/1.png)]
 
   - RADOS： 提供自我修复特性，为可靠、智能的分布式系统打下了坚固基础。
   - LIBRADOS: 允许应用程序直接访问，C/C++、Java和Python等等语言。
@@ -39,7 +39,7 @@
     - 通过Monitor为集群提供全局配置信息
     - 快照和克隆、数据一致性检查
     - 对象分层、数据自动恢复、数据均衡
-  - RADOS 原理[![img](https://github.com/NewHsu/CentOS-7/raw/master/images/Ceph/6.png)](https://github.com/NewHsu/CentOS-7/blob/master/images/Ceph/6.png)
+  - RADOS 原理[![img](../images/Ceph/6.png)]
   - 基于RADOS，使用Ceph作为存储架构，一个Ceph存储集群包含以下两种类型的进程：
 
   1. Ceph Monitors ：通过一堆map，维护着一个集群的健康状态，包括Monitor Map、OSD Map、MON Map、PG Map、CRUSH Map。
@@ -69,12 +69,12 @@
   - 在大规模的分布式系统中，如何平均的分布数据和负载以及最大化系统的利用率，并且能够摆脱扩展的瓶颈和系统故障？普通的分布式系统都会用多个中心节点去解决这个问题，但是每次集群数据变动都会出现例如元数据查询瓶颈，导致workload非常之大。
   - 而CRUSH算法是将数据分布的查询变成了计算操作，由客户端完成，尽可能的较少集中或者热点的产生。CRUSH是受控复制的分布式算法，在Ceph中控制数据分布的方法。它只需要一个集群的描述map和规则就可以根据一个整型的输入得到存放数据的设备列表。
 
-  1. CRUSH能干什么？[![img](https://github.com/NewHsu/CentOS-7/raw/master/images/Ceph/4.png)](https://github.com/NewHsu/CentOS-7/blob/master/images/Ceph/4.png)
+  1. CRUSH能干什么？[![img](../images/Ceph/4.png)]
 
   - Ceph的后端是一个对象存储（RADOS），所有的数据都会按照一个特定的size（默认是4M）被切分成若干个对象，也就是上面的Objects。
   - 每一个Object都有一个Objectid（oid），每个object都有对应的pgid。有了这个pgid后，Client就会执行CRUSH算法得到一个OSD列表。然后对它们进行筛选，根据副本数找出符合要求的OSD。CRUSH作用可以简单的理解为，根据pgid得到一个OSD列表。
   - CRUSH 是公平的，她会均衡集群节点上的OSD写数据，不同速度差异的磁盘可以设置不同权重（SSD和HDD）
-  - CRUSH 原理[![img](https://github.com/NewHsu/CentOS-7/raw/master/images/Ceph/7.png)](https://github.com/NewHsu/CentOS-7/blob/master/images/Ceph/7.png)
+  - CRUSH 原理[![img](../images/Ceph/7.png)]
 
   1. Object
 
@@ -101,7 +101,7 @@
 
   ### 4.1 Ceph 实例图
 
-  [![img](https://github.com/NewHsu/CentOS-7/raw/master/images/Ceph/3.png)](https://github.com/NewHsu/CentOS-7/blob/master/images/Ceph/3.png)
+  [![img](../images/Ceph/3.png)]
 
   > GlusterFS实例架构图-实例采用生产常用配置进行，涵盖多种故障测试和恢复的技术点。
 
@@ -306,7 +306,7 @@
 
   12. 创建Ceph FS文件系统
 
-  [![img](https://github.com/NewHsu/CentOS-7/raw/master/images/Ceph/8.png)](https://github.com/NewHsu/CentOS-7/blob/master/images/Ceph/8.png)
+  [![img](../images/Ceph/8.png)]
 
   ```
       CephFS 提供了一个任意大小且兼容POSIX的分布式文件系统,依赖于MDS元数据服务。
@@ -491,10 +491,10 @@
        [root@ceph-1 ~]# ceph osd out osd.6
        [root@ceph-1 ~]# ceph osd out osd.7 <---- 尽可能的少
        踢出集群后，Ceph会自动均衡数据，将被剔除的osd数据拷贝到别的osd上。
-       2. 观察数据迁移
+       1. 观察数据迁移
        [root@ceph-1 ~]# ceph -w
        直到数据迁移返回状态到 “ active+clean ”
-       3. 停止osd并删除osd
+       1. 停止osd并删除osd
        [root@ceph-4 ~]# service ceph-osd@6 stop
        [root@ceph-4 ~]# service ceph-osd@7 stop  <----对应的节点停止
        此时ceph osd tree看到的状态为“down”
