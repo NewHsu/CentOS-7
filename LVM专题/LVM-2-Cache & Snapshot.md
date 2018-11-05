@@ -7,33 +7,25 @@
 
 ### 1.2 Cache & SSD
 1. 在计算机中，无论是基础硬件设备，还是操作系统，以及应用软件中均能见到cache的身影。Cache是容量与性能之间取平衡的结果，以更低的成本，获得更高的收益。
-2. 在计算机硬件发展的历程中，传统的机械硬盘逐步成为整个系统的瓶颈，性能增长十分缓慢。现金能够提升IO性能的Flashdisk(SSD/FusionIO等)出现，改变了这一切。
+2. 传统的机械硬盘逐步成为整个系统的瓶颈，技术突破和性能增长都十分缓慢。而现今能够提升IO性能的Flashdisk(SSD/FusionIO等)出现，改变了磁盘的定义和打破了这个一直以来的瓶颈。
 3. Flash disk将硬盘从机械产品变成了电气产品，功耗更小，性能更好，时延更优。但Flash disk技术还存在一些问题，昂贵的价格以及稳定性，最主要的是磁盘的`使用寿命`。
 
 ### 1.3 LVM SSD缓存
 * 为了最有性价比的利用SSD设备来加速整个系统，可以使用默认的DM-cache。当然也可以使用FlashCache等技术，由于CentOS 7 自身是支持LVM使用DM-cache，所以就用CentOS 7 自带的来配置缓存；当然FlashCache也是很好的选择。
->flashcache 技术参考GlusterFS章节
 
-### 1.4 DM-cache 原理简介
+### 1.4 DM-cache 简介
 * dm-cache 使用 device mapper 核心，并在上面增加一个策略层。这个策略层很像一个插件接口，可以实现不同的策略。这些策略（以及缓存的内容）决定了缓存是否可以命中，是否需要进行数据迁移（在原始设备与缓存设备之间进行某个方向的数据移动）。
-* 目前已经实现了包括最近最少用（LRU）、最常使用（MFU）等策略，但目前只有缺省的“mq”策略合并到内核中了，以便减少起初需要测试到的策略数量。文件系统可以为策略提供 hints，比如某些块脏了，或是某些块已经被放弃了。这些信息有助于策略更好地决定块要存储到的位置。
 
 ### 1.5 理解Lvm cache的相关术语
 
-        lvmcache(7) ：
-        origin LV           OriginLV      large slow LV
-        cache data LV       CacheDataLV   small fast LV for cache pool data
-        cache metadata LV   CacheMetaLV   small fast LV for cache pool metadata
-        cache pool LV       CachePoolLV   CacheDataLV + CacheMetaLV
-        cache LV            CacheLV       OriginLV + CachePoolLV
-
-        1：真实的LV卷，很大的慢速设备LV
-        2：cache 数据卷  可以很小，但是必须很快，用来缓存数据
-        3：Cache 元数据卷 可以很小，但是必须很快，用来缓存元数据
-        4：Cache Pool LV ：缓存池，包含 data+meta
-        5：Cache LV ：    缓存卷，包含 真实的LV卷+缓存池
-
-        实际的创建顺序也就是 1到5的步骤。
+|术语|释义|
+|:---|:---|
+|origin LV |真实的LV卷，很大的慢速设备LV|
+|cache data LV |数据卷  可以很小，但是必须很快，用来缓存数据|  
+|cache metadata LV  | 元数据卷 可以很小，但是必须很快，用来缓存元数据|
+|cache pool LV  |缓存池，包含 data+meta|
+|cache LV   | 缓存卷，包含 真实的LV卷+缓存池| 
+>实际的创建顺序也就是从上至下的步骤。
 
 ## 2. DM Cache 实例
 
@@ -45,7 +37,7 @@
 ### 2.2 测试内容和环境说明
 1. 利用sdb1模拟ssd磁盘分区，为Originlv添加Cache。
 
-### 2.3 Lvm SSD缓存创建（DM-cache）
+### 2.3 LVM SSD缓存创建（DM-cache）
 1. 确认设备
 
         [root@LVM-Host ~]# lsblk
@@ -117,17 +109,16 @@ LVM的DM-cache原生的支持使得LVM层面的加速得到了可能，大大提
 
 ## 3. LVM Snapshot
 ### 3.1 LVM Snapshot介绍
-* lvm的快照可以让我们轻松的“备份数据”或者“历史回溯”，由于源lvm和snapshot的关系，snapshot只能够临时使用，不能脱离源lvm而存在；
-* 可以在snapshot的基础上进行某时间点的备份或其他操作，这样既不会影响原始数据也能够达到备份的需求。
-* 如果在创建snapshot后意外地删除了文件，可以在快照里找到所删除的文件的原始文件。
-* 不要改变快照卷，保持创建时的样子，因为它用于快速恢复。
-* 快照不可替代生产中的“备份”工具。备份是某些数据的基础副本，因此我们不能使用快照作为备份的一个选择。
+* LVM的快照可以让我们轻松的“备份数据”或者“历史回溯”，由于源LVM和Snapshot的关系，Snapshot只能够临时使用，不能脱离源lvm而存在；
+* 可以在Snapshot的基础上进行某时间点的备份或其他操作，这样既不会影响原始数据也能够达到备份的需求。
+* 如果在创建Snapshot后意外地删除了文件，可以在快照里找到所删除的文件的原始文件。
+* 生产中坚决不要使用快照功能来替代“备份”工具。
 
-### 3.2 LVM snapshot原理
+### 3.2 LVM Snapshot原理
 > LVM对LV提供的快照功能，只对LVM有效。
 * snapshot创建时，仅仅是拷贝原始卷里数据的元数据(meta-data)，并不会有数据的物理拷贝。所以创建几乎是实时的。当原始卷上有写操作执行时，snapshot跟踪原始卷块的改变，这个时候原始卷上将要改变的数据在改变之前被拷贝到snapshot预留的空间里，因此这个原理的实现叫做写时复制(COW，copy-on-write)。
 * 在写操作写入块之前，将原始数据移动到snapshot空间里去，这样就保证了所有的数据在snapshot创建时保持一致。而对于snapshot的读操作，如果是读取数据块是没有修改过的，那么会将读操作直接重定向到原始卷上，如果是要读取已经修改过的块，那么就读取拷贝到snapshot中的块。
-* 创建snapshot的大小并不需要和原始卷一样大，其大小仅仅只需要考虑两个方面：从shapshot创建到释放这段时间内，估计块的改变量有多大;数据更新的频率。一旦snapshot的空间记录满了原始卷块变换的信息，那么这个snapshot立刻被释放，从而无法使用，从而导致这个snapshot无效。
+* 创建snapshot的大小并不要求和原始卷一样大，大小可以考虑两个方面：从shapshot创建到释放这段时间内，估计块的改变量有多大;数据更新的频率。一旦snapshot的空间数据量超出大小限制，那么这个snapshot立刻被释放，从而导致这个snapshot无效。
 
 ### 3.3 创建快照
 快照创建时，仅拷贝原始卷里“数据”的元数据，并生成位图记录原始卷的块数据变化。
@@ -278,4 +269,4 @@ LVM的DM-cache原生的支持使得LVM层面的加速得到了可能，大大提
 >修改此处的100为80，这样达到80%使用的时候，将自动扩展20%，这样，就可以自动扩容了。这将把快照从超载导致下线事故中拯救出来.
 
 ## 总结
-产环境中，快照通常是用于数据某一时间点的备份，用完之后删除快照即可，至于回溯很少使用。
+产环境中，快照通常是用于数据某一时间点的备份，用完之后删除快照即可。
