@@ -1,4 +1,4 @@
-# GlusterFS
+# GlusterFS 基础
 
 ## 1. GlusterFS介绍
 ### 1.1 简单介绍
