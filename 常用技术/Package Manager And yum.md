@@ -5,7 +5,7 @@ CentOS 软件管理
 ## RPM
 RPM是由红帽开发并维护的软件包管理器，该程序提供一种标准的方式来打包软件进行分发，使得软件包的安装和卸载以及管理得到大大简化。管理员可以通过RPM管理器来跟踪软件包所安装的文件。有关已经安装的RPM软件包信息保存在各个系统本地的RPM数据库中。
 
-###### 软件包命名
+###### 范例：软件包命名
 
 |libndp-1.2-4.el7.x86_64.rpm
 -
@@ -60,7 +60,7 @@ RPM  软件包可由为其打包的组织进行数字签名，来自某一特定
     -U 升级
     -h 解压rpm的时候打印50个斜条 (#)
     -v 显示详细信息
-###### 6.	Rpm查询
+###### 6.	常用rpm查询
 查询所有已安装的软件包：
 > rpm –qa 或者 rpm –qa | grep 包名
 
@@ -102,7 +102,7 @@ RPM  软件包可由为其打包的组织进行数字签名，来自某一特定
 CentOS 系统在安装以后，都会自动安装yum软件包管理器，可以从互联网上进行软件包的更新和安装更多软件，最主要的是yum管理器在安装软件包和卸载软件包的时候会自动的替我们解决依赖关系。
 
 yum命令在多个yum源中搜索软件包和其依赖关系，yum的主配置文件为/etc/yum.conf,其他的yum源配置文件位于”/etc/yum.repo.d/”目录内。
-###### yum源配置文件范例
+### yum源配置文件范例
 
     [root@localhost ~]# cat /etc/yum.repos.d/CentOS-Base.repo
     …….
@@ -113,44 +113,44 @@ yum命令在多个yum源中搜索软件包和其依赖关系，yum的主配置�
     gpgcheck=1    //gpg签名校验
     gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7  //校验公钥的位置
     ……
-###### yum使用方法
-列出yum源
+### yum使用方法
+* 列出yum源
 
     [root@localhost ~]# yum repolist
-列出可以安装的软件组，记住是一组软件并不是某个软件包
+* 列出可以安装的软件组，记住是一组软件并不是某个软件包
 
     [root@localhost ~]# yum grouplist
-组安装，安装以后就可以支撑一个服务
+* 组安装，安装以后就可以支撑一个服务
 
     [root@localhost ~]# yum groupinstall "Basic Web Server"
-列出所有源的软件包，单独软件包
+* 列出所有源的软件包，单独软件包
 
     [root@localhost ~]# yum list
-单独软件包安装，并自动解决依赖关系，-y参数是找到软件包即自动安装，如果没有-y参数，找到软件包后需要你手动输入y进行确认。
+* 单独软件包安装，并自动解决依赖关系，-y参数是找到软件包即自动安装，如果没有-y参数，找到软件包后需要你手动输入y进行确认。
 
     [root@localhost ~]# yum –y install httpd
-卸载软件包，同样会解决依赖关系
+* 卸载软件包，同样会解决依赖关系
 
     [root@localhost ~]# yum remove zsh
-只下载软件包，不安装
+* 只下载软件包，不安装
 
     [root@localhost ~]# yumdownloader zsh
-更新 yum update zsh  更新zsh软件包
+* 更新 yum update zsh  更新zsh软件包
 
     [root@localhost ~]# yum update zsh
- 降级软件包
+* 降级软件包
 
     [root@localhost ~]# yum downgrade zsh
-搜索软件包
+* 搜索软件包
 
     [root@localhost ~]# yum search httpd
-该文件隶属于哪个软件包
+* 该文件隶属于哪个软件包
 
     [root@localhost ~]# yum provides /etc/inittab
-查询软件包信息
+* 查询软件包信息
 
     [root@localhost ~]# yum info zsh
-清除缓存
+* 清除缓存
 
     [root@localhost ~]# yum clean all
 >以上都是常用命令，更多信息可以查看 man yum
@@ -168,14 +168,14 @@ yum命令在多个yum源中搜索软件包和其依赖关系，yum的主配置�
     [root@localhost ~]# mount /dev/cdrom /mnt/cdrom/
 >以上步骤完成以后，既可以使用光盘作为yum源的安装为本机提供软件包
 
-#### 自定义yum源
+### 自定义yum源
 如果需要安装的软件包不在光盘内或者不在制定源内，我们可以通过添加特点的软件源或者是下载rpm包自己制作yum源来完成。
-###### 1.	添加其他软件源
+##### 1.	添加其他软件源
 
     rpm --import http://elrepo.org/RPM-GPG-KEY-elrepo.org
     rpm -Uvh http://www.elrepo.org/elrepo-release-7.0-2.el7.elrepo.noarch.rpm
 >安装软件源rpm包即可使用
-###### 2.	自定义软件包yum源
+##### 2.	自定义软件包yum源
 1：将软件包统一放到一个文件夹内，例如 mkdir /root/zsh
 
 2：cp zsh*.rpm  /root/zsh
@@ -192,7 +192,7 @@ yum命令在多个yum源中搜索软件包和其依赖关系，yum的主配置�
     baseurl=file:///root/zsh
     gpgcheck=0
 
-#### 内部网络yum源
+### 内部网络yum源
 如果内部网络内很多主机需要进行软件安装和升级补丁，可以在网络内搭建一台yum源服务器提供软件更新和安装。
 
 1：将光盘内容或者自定义软件包的文件夹拷贝到ftp或者http或NFS目录即可

@@ -243,7 +243,7 @@
 * Teamd提供如下方式：
     * Broadcast  传输来自搜有端口的每个包
     * Roundrobin  以轮循方式传输每个数据包
-    * Activebackup  故障转移
+    * Active/backup  故障转移
     * Loadbalance   运用哈希函数尝试在为包传输选择端口时达到完美均衡
 
 ### team配置方法
