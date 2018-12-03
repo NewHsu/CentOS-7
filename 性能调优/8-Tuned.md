@@ -30,26 +30,23 @@
     - virtual-host                - Optimize for running KVM guests
     Current active profile: virtual-guest
 
-4、系统中的tuned profile 的意义
+    tuned-adm:提供的文件分为两类：节能和性能提升,其侧重点分别为：存储和网络的低延迟、存储和网络的高吞吐量、虚拟计算机性能、虚拟主机性能。
 
-    default: 尽可能不要去影响当前系统,加入一点点省电模式,default下会适当的对磁盘的耗电量降低,网络配置不动,默认算法是CFQ.  典型应用为Email 服务器
+> CentOS 7 内置的调优方案，可进行自定义配置，参考文件夹内各个配置文件“/usr/lib/tuned” 来了解参数更改内容。
 
-    desktop-powersave: 面向桌面, SATA 省电模式, 通过其它手段调节CPU,以太网,磁盘,都会想办法去降低.
+4、tuned 激活
+如果想要更改当前调优模式，可以在确定应用调优模型和系统模型之后，对比以上配置，选择好后，可以使用如下命令激活：
 
-    server-prowersave:只对SATA做降级,省电模式为环保,但是不能一直做环保,比如,磁盘,我为了省电,降低利用率,但是磁盘有一个start up time...会影响工作效率.
+    [root@localhost tuned]# tuned-adm profile desktop
+    已经活跃模式下，切换配置文件进行激活
 
-    laptop-ac-powersave: 插电模式下 打开SATA降低级别,省电,WIFI,以太网,进行调节,省电
+    [root@localhost tuned]# tuned-adm off 
+    停止tuned调优
 
-    laptop-battery-powersave:  电磁模式. 高调节,一旦使用,如果恢复正常工作状态,需要很大的延时. 效率更慢,磁盘,网络都收影响..
+    [root@localhost tuned]# tuned-adm profile desktop
+    [root@localhost tuned]# tuned-adm active
+    停止模式下，需要先profile选择文件，然后激活
 
-    spindown-disk: 尽量不让磁盘使用. 适用于磁盘不要在服务器服务上使用. 非常残酷.
-                writeback动作延迟.. 尽量不做disk swapping. 日志延迟写入.分区挂载成noatime,尽量不要在生产环境中使用.
+5、自定义配置文件进行调优
 
-    throuhtput-performance: 重点:  VT -host + 低端存储 适用...
-        tuned 所有省电模式关闭. sysctl 参数调节,提高吞吐量,针对磁盘和网络.当前的算法切换成deadline, 以及4倍的 read-ahead buffers .. 预读技术,读磁盘的时候,把当前的扇区在多读一点.   可以进入查看,这个设置的省电全部都已经false了. 可以试着修改文件内的内容,进行添加虚拟机的磁盘.
 
-    latency-performance (Database server): 电源省电全部关闭.sysctl 参数调优,让网络的I/O尽量降低latency.算法为dead-line.
-
-    enterprise-storage(File server , VT-host with Enterprise storage)
-        适用于文件服务器, VT-host + 高端存储.
-        省电全部关闭, 算法为dead-line, 把所有的I/O barrier 全部关闭, 提高I/O能力,疯狂读写磁盘,如果这个时候不幸断电,可能导致系统不能恢复.
