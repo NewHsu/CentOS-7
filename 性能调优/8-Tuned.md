@@ -34,7 +34,7 @@
 
 > CentOS 7 内置的调优方案，可进行自定义配置，参考文件夹内各个配置文件“/usr/lib/tuned” 来了解参数更改内容。
 
-4、tuned 激活
+4、tuned-adm 使用
 如果想要更改当前调优模式，可以在确定应用调优模型和系统模型之后，对比以上配置，选择好后，可以使用如下命令激活：
 
     [root@localhost tuned]# tuned-adm profile desktop
@@ -48,5 +48,59 @@
     停止模式下，需要先profile选择文件，然后激活
 
 5、自定义配置文件进行调优
+有时候有些应用的模式比较特殊，内置的调优方案无法满足我们的需求，所以我们可能要结合最近的内置调优方案然后进行改进，满足调优需求，具体步骤如下：
 
+    1、拷贝调优配置文件，在原有基础进行修改：
+    # cp -R /usr/lib/tuned/balanced /etc/tuned/myserver
 
+    2、查看新建的 Profile 结构数
+    # tree /etc/tuned/myserver
+        /etc/tuned/myserver
+        └── tuned.conf
+
+        0 directories, 1 file
+
+    3、修改 tuned.conf 文件
+    # vim /etc/tuned/myserver/tuned.conf 
+
+    4、内容简介
+
+    [main]            --> 信息汇总介绍
+    summary=myserver tuned file
+
+    [cpu]             --> CPU设置
+    governor=conservative
+    energy_perf_bias=normal
+
+    [audio]           -->声音设置，如不需要可以取消
+    timeout=10
+
+    [video]           -->video设置，如不需要可以取消
+    radeon_powersave=auto
+
+    [disk]            -->磁盘参数设置
+    # Comma separated list of devices, all devices if commented out.
+    # devices=sda
+    alpm=medium_power
+    elevator=deadline
+
+    [my_sysctl]        -->设置sysctl参数
+    type=sysctl              
+    fs.file-max=655350     
+    更多参数，还请参考其他配置文件或者man 5 tuned.conf  或者参考 “/usr/share/doc/tuned-2.5.1/” 目录下文件.
+
+    5、使该 profile 生效
+    #  tuned-adm profile myserver
+
+    6、验证调优效果
+    # tuned-adm active
+    Current active profile: myserver
+    # sysctl  -a |grep 'fs.file-max'
+    fs.file-max = 655350
+    # cat /sys/block/sda/queue/scheduler 
+    noop [deadline] cfq 
+    所有调优全部生效，调优成功。
+
+## 总结：
+× 其实这个调优省事很多，省的自己去一个一个更改参数了，但是有一点，一定要记住，调优是有节制的，千万不要无休止的调优。
+× 这个tuned调优可以配合crontab来去做更灵活的调优，例如，早上一个策略增加吞吐量，晚上一个策略进行节能，最大化的资源节省。
