@@ -95,7 +95,7 @@
     6、验证调优效果
     # tuned-adm active
     Current active profile: myserver
-    # sysctl  -a |grep 'fs.file-max'
+    # sysctl  -a |grep 'fs.file-max'
     fs.file-max = 655350
     # cat /sys/block/sda/queue/scheduler 
     noop [deadline] cfq 
