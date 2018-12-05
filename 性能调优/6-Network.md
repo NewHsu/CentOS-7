@@ -155,6 +155,175 @@ net.ipv4.tcp_keepalive_probes = 9
 发探测包的个数；
 
 ### 参考实验
+* TCP/UDP buffers (L)
+
+    1、我们收发包数据包的时候,会有buffer这个层面的存在，kernel会自动调节buffer大小，tcp和udp的buffer默认占到内存的极限值，并且全局生效.
+    
+        net.ipv4.tcp_mem(pages)
+        net.ipv4.udp_mem(pages)      --> 单位是page（页）
+        min      pressure     max    -->三个选项的值
+        这俩个值，通常不需要大家去干预，因为开机的时候就已经接近内存，但是一旦值达到pressure的时候kernel就要干预，调节到min，因为怕链接不断增加，使用所有的内存。但是不管怎么调节,都不可能超过max。
+        如果计算机主要做网络负载，可以调节min.比如4分之3的内存.pressure  可以是 5分之4 ，max 可以是6分之5。
+        每个进程,每个连接, 收发各占一个buffer，档大并发上来以后，非常消耗内存。
+
+    2、udp socket buffer
+
+        net.ipv4.udp_rmem_min (bytes)
+        net.ipv4.udp_wmem_min (bytes)
+
+        net.core.rmem_default(bytes)    收包的buffer大小
+        net.core.wmem_default(bytes)   发包的buffer大小
+
+        net.core.rmem_max(bytes)    收包的buffer大小 极限值
+        net.core.wmem_max(bytes)   发包的buffer大小  极限值
+        创建链接buffer大小的极限值，如果刚才的pressure 达到极限.那么新建立的链接buffer就会往小调整，但是不会低于最小保证的min。
+        增加响应速度和吞吐量，只要链接就给到最大的Max 但是会消耗大量内存.尽量不要这么做。 
+
+    3、TCP socket buffer （TCP要先调节总开关）
+
+        net.core.rmem_max(bytes)
+        net.core.wmem_max(bytes)  -->总值，这里要先放大，才能调节下面
+        net.ipv4.tcp_rmem(bytes)
+        net.ipv4.tcp_wmem(bytes)   （min  default max）
+        总开关必须大于调节的值!!
+        那么到底要给多大的buffer才合适呢？buffer给的太大，速度会下来，利用率差，反应慢。buffer给太小，会产生丢包，溢出等问题。
+        BDP计算：带宽*延时，for example:1Mbits/s/8*2s=262144 Bytes
+
+#### 实验 TCP buffer 和 滑动窗口
+    1、A主机 ping B主机，很小延时，速度很快，可以查看默认的查看默认的发包机制：
+
+        [root@A ~]# ping B
+        PING B (172.16.26.131) 56(84) bytes of data.
+        64 bytes from B (172.16.26.131): icmp_seq=1 ttl=64 time=0.326 ms
+        64 bytes from B (172.16.26.131): icmp_seq=2 ttl=64 time=0.295 ms
+        64 bytes from B (172.16.26.131): icmp_seq=3 ttl=64 time=0.292 ms
+
+        [root@A ~]# tc qdisc show
+        qdisc pfifo_fast 0: dev eno16777736 root refcnt 2 bands 3 priomap ......
+        qdisc pfifo_fast 0: dev eno33554960 root refcnt 2 bands 3 priomap ......
+        pfifo fast 是默认的策略，pfifo_fast就是系统的标准QDISC，有3个波段，分别是band0、band1、band2。band0最高，band2最低，如果band0有数据包就不会处理band1的波段，band1和band2之间也是一样，每个波段内是fifo（first in first out）。
+
+    2、B主机创建文件到/var/www/html/下，A主机进行下载，正常状态下网络速度
+
+        [root@B ~]# dd if=/dev/zero of=/var/www/html/file.img bs=1M count=5
+        [root@A ~]# time wget http://B/file.img
+        2018-12-05 03:56:18 (205 MB/s) - 已保存 “file.img.1” [5242880/5242880])
+        real	0m0.033s
+        user	0m0.000s
+        sys	0m0.023s
+        时间很短就完成了。
+
+    3、模拟网络变慢，延迟2s
+        
+        [root@A ~]# tc qdisc add dev eno33554960 root netem delay 2s
+        [root@A ~]# ping   B
+        PING B (172.16.26.131) 56(84) bytes of data.
+        64 bytes from B (172.16.26.131): icmp_seq=1 ttl=64 time=2000 ms
+        64 bytes from B (172.16.26.131): icmp_seq=2 ttl=64 time=2000 ms
+        64 bytes from B (172.16.26.131): icmp_seq=3 ttl=64 time=2000 ms
+
+    4、A主机在网络不健康的情况下进行下载，查看网络速度
+        [root@A ~]# time wget http://B/file.img
+        2018-12-05 04:02:12 (197 KB/s) - 已保存 “file.img.2” [5242880/5242880])
+        real	0m30.019s
+        user	0m0.009s
+        sys	0m0.043s
+        很慢！！很慢！！！！对比real时间，不是一个数量级的。
+    
+    5、每个包的延迟为2s，那么在这种情况下，BDP应该是：
+        Lpipe = Bandwidth * DelayRTT = A * W 
+        100Mbits/s/8 * 2s= 26214400 bytes
+
+    6、依据计算结果，调整buffer，查看效果
+        [root@A ~]## echo '26214400 26214400 26214400' > /proc/sys/net/ipv4/tcp_rmem
+        [root@A ~]## echo 26214400 > /proc/sys/net/core/rmem_max
+        [root@A ~]# time wget http://B/file.img
+        2018-12-05 04:36:35 (256 KB/s) - 已保存 “file.img.5” [5242880/5242880])
+        real	0m24.013s
+        user	0m0.004s
+        sys	0m0.045s
+        结果先是有所提升，比前面好一点。
+
+    7、尝试设置接受buffer大小，观查效果，现在调整在A主机上的接收缓冲区大小为原来的10倍：
+        [root@A ~]# echo '262144000 262144000 262144000' > /proc/sys/net/ipv4/tcp_rmem
+        [root@A ~]# echo 262144000 > /proc/sys/net/core/rmem_max
+        [root@A ~]# time wget http://B/file.img
+        2018-12-05 04:27:47 (256 KB/s) - 已保存 “file.img.3” [5242880/5242880])
+        real	0m24.012s
+        user	0m0.001s
+        sys	0m0.046s
+        在默认BDP的size之外增加更多的buffer空间不会对下载速度有明显的改善，而且在传输中的碎片可能使得情况更糟。
+
+    8、现在在A主机上关闭窗口调整功能：
+        [root@A ~]# echo 0 > /proc/sys/net/ipv4/tcp_window_scaling
+        然后继续执行下载命令：
+        [root@A ~]# time wget http://B/file.img
+        2018-12-05 04:43:19 (30.8 KB/s) - 已保存 “file.img.6” [5242880/5242880])
+        real	2m50.059s
+        user	0m0.003s
+        sys	0m0.062s
+        发现下载速度变慢很多。因为关闭窗口自动分割将破事接收缓存变成64KiB大小，因此发送方发送的数据段大小也被限制到64KiB。
+        但如果现在重新打开自动窗口分割：
+        # echo 1 > /proc/sys/net/ipv4/tcp_window_scaling
+        接着在A主机上将窗口的scaling factor设置为14（最大值）。
+        # sysctl -w net.ipv4.tcp_adv_win_scale=14
+        [root@A ~]# time wget http://B/file.img
+        2018-12-05 04:45:56 (256 KB/s) - 已保存 “file.img.7” [5242880/5242880])
+        real	0m24.012s
+        user	0m0.007s
+        sys	0m0.055s
+        该参数的默认值为1。尽管有很多的参数可对网络进行调整,但是使用默认值不失为一个好的方案。不要忘记TCP滑动窗口，如果开放滑动窗口，会让我们使用超过64KB以上的buffer，如果关闭就是被锁死到64KB。
+
+#### 实验 2 网络连接和内存使用
+    
+    1、在A主机上，检查当前net.core.rmem_max和tcp.ipv4.tcp_rmem的设置：
+
+        [root@A ~]# sysctl -a | grep --color rmem
+        net.core.rmem_default = 212992
+        net.core.rmem_max = 212992
+        net.ipv4.tcp_rmem = 4096	87380	6291456
+        net.ipv4.udp_rmem_min = 4096
+
+
+    2、现在我们将强制发送机对每个连接都使用512KiB的buffer size。
+
+        [root@A ~]# sysctl -w net.core.rmem_max=524288
+        [root@A ~]# sysctl -w net.ipv4.tcp_rmem="524288 524288 524288"
+
+
+
+    3、现在开两个窗口，其中一个用于监控内存的使用，而另外一个窗口用于监控apache进程的变化：
+
+        [root@B ~]# watch -n1 'cat /proc/meminfo'
+        [root@B ~]# watch -n1 'ps -ef | grep httpd | wc -l'
+
+        之后确保B主机上开启httpd进程，并在A主机上执行ab对其进行压力测试。
+        并非要对apache进行压力测试，我们的目的是要观察在一个系统处于很重的网络负载情况下对内存的使用。
+        [root@A ~]# ab -n 10000 http://B/
+        同样，可以将压力模拟到10个用户以致100到1000个用户的并发访问：
+        [root@A ~]# ab -n 10000 –c 10 http://B/
+        [root@A ~]# ab -n 10000 –c 1000 http://B/
+        随着连接数的增加，free内存逐步较少...
+
+
+## 总结
+* 网络调优有很多方式，上面介绍的也都是基本的调优方法，主要是理解这些设置会对网络造成的影响，如果没有特殊的需求，建议使用系统默认配置即可。
+* 网络的bond方法还请参考其前面章节，bond可以是增加带宽的方式，也可以容灾备份的主要手段。
+* 至于网络传输时候是需要开销的， MTU=1500，TCP是3.5%的开销，UDP 是 1.9%的开销，所以网络稳定的情况下，UDP的效率要高于TCP，但是TCP是可靠传输，在数据传输保障上高于UDP，至于取舍就要看实际情况了，比如，流媒体的话可以选用udp，看电影丢个一帧，二帧的问题不是很大，但是对于交易数据，建议选择TCP，因为需要保障数据完整性和交易的正确性。
+* jumbo frames，连同交换机共同设置，例如：MTU=9000，增加传输利用率。
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -189,110 +358,9 @@ net.ipv4.tcp_keepalive_probes = 9
 
 
  
-* TCP的流控和BDP（Bandwidth delay product）:
-在一个延迟比较高的网络上观测流动窗口如何实现自动控制，观察BDP以及调整buffer size和窗口大小对网络的影响。
-和上一个网络环境一样，需要两台机器。分别是192.168.0.60和192.168.0.80我们将在192.168.0.80上建立一个web服务器，并通过高延迟的网络下载该文件，观察性能；之后对网络调整之后再观察性能。
-
-
-[root@kdc ~]# ifconfig 
-bdptun    Link encap:IPIP Tunnel  HWaddr   
-          inet addr:10.10.60.60  P-t-P:10.10.60.160  Mask:255.255.255.0
-
-[root@app ~]# ifconfig 
-bdptun    Link encap:IPIP Tunnel  HWaddr   
-          inet addr:10.10.80.80  P-t-P:10.10.80.180  Mask:255.255.255.0
-
-我们会尝试ping对方，这个时候将发现一个非常高的延迟：
-
-在书上的实验显示，每个包的延迟为3s，那么在这种情况下，BDP应该是：
-Lpipe = Bandwidth * DelayRTT = A * W
-
-100 Mebibits | 3 s 	| 1 Byte 	| 220
--------------+-------+---------+------ = 39321600 Bytes
-s | 	  	| 8 bits 	| Mebi
-
-现在在被ping的那一方即192.168.0.80这台机器上修改/etc/fstab文件，在内存中建立一个5MB的文件：
-
-[root@app ~]# mkdir /var/www/bdp
-[root@app ~]# cat /etc/fstab | grep bdp
-tmpfs                   /var/www/bdp            tmpfs   defaults        0 0
-[root@app ~]# mount -a
-
-[root@app ~]# dd if=/dev/zero of=/var/www/bdp/bigfile bs=1M count=5
-5+0 records in
-5+0 records out
-5242880 bytes (5.2 MB) copied, 0.055922 seconds, 93.8 MB/s
-
-并在该机器的apache服务器上增加一个子配置：
-[root@app ~]# cat /etc/httpd/conf.d/bdp.conf 
-alias "/bdp" "/var/www/bdp"
-<directory "/var/www/bdp">
-  order allow,deny
-  allow from all
-  options indexes
-</directory>
-
-在另外一台机器上查看sysctl –a的值，比较关键的是tcp_rmem和rmam_max。
-
-通过将这些值导入系统来调整内核参数：
-[root@kdc ~]# sysctl -a | grep rmem
-net.ipv4.udp_rmem_min = 4096
-net.ipv4.tcp_rmem = 4096        87380   131072
-net.core.rmem_default = 109568
-net.core.rmem_max = 109568
-
-[root@kdc ~]# sysctl -a | grep rmem >> /etc/sysctl.conf
-
-之后在kdc上，通过执行time wget命令从192.168.0.80上获取文件：
-命令：# time wget http://10.10.80.180/bdp/bigfiles，记录下载时间。
-
-现在调整在192.168.0.60上的接收缓冲区大小为原来的10倍：
-# echo '393216000 393216000 393216000' > /proc/sys/net/ipv4/tcp_rmem
-# echo 393216000 > /proc/sys/net/core/rmem_max
-
-完成之后重新执行命令：
-# echo 393216000 > /proc/sys/net/core/rmem_max
-
-需要注意的是：在默认BDP的size之外增加更多的buffer空间不会对下载速度有明显的改善，而且在传输中的碎片可能使得情况更糟。
-
-现在在192.168.0.60上关闭窗口调整功能：
-# echo 0 > /proc/sys/net/ipv4/tcp_window_scaling
-然后继续执行下载命令：
-# time wget http://10.10.80.180/bdp/bigfiles
-
-我们将发现下载速度变慢很多。因为关闭窗口自动分割将破事接收缓存变成64KiB大小，因此发送方发送的数据段大小也被限制到64KiB。
-但如果现在重新打开自动窗口分割：
-# echo 1 > /proc/sys/net/ipv4/tcp_window_scaling
-
-接着在192.168.0.60即发送机上将窗口的scaling factor设置为14（最大值）。
-# sysctl -w net.ipv4.tcp_adv_win_scale=14
 
  
 实验三：网络连接和内存使用：
-
-在192.168.0.60，即发送机上检查当前net.core.rmem_max和tcp.ipv4.tcp_rmem的设置：
-
-[root@kdc ~]# sysctl -a | grep --color rmem
-net.ipv4.udp_rmem_min = 4096
-net.ipv4.tcp_rmem = 4096        87380   131072
-net.core.rmem_default = 109568
-net.core.rmem_max = 109568
-
-现在我们将强制发送机对每个连接都使用512KiB的buffer size。
-# sysctl -w net.core.rmem_max=524288
-# sysctl -w net.ipv4.tcp_rmem="524288 524288 524288"
-
-现在开两个窗口，其中一个用于监控内存的使用，而另外一个窗口用于监控apache进程的变化：
-
-# watch -n1 'cat /proc/meminfo'
-# watch -n1 'ps -ef | grep httpd | wc -l'
-
-之后确保192.168.0.80上开启httpd进程，并在192.168.10.60上执行ab对其进行压力测试。
-当然在这个实验当中，我们并非要对apache进行压力测试，我们的目的是要观察在一个系统处于很重的网络负载情况下对内存的使用。
-# ab -n 100 http://192.168.0.X+100/
-同样，可以将压力模拟到10个用户以致100到1000个用户的并发访问：
-# ab -n 100 –c 10 http://192.168.0.X+100/
-# ab -n 100 –c 100 http://192.168.0.X+100/
 
 
 
