@@ -1,9 +1,23 @@
 ## NetWork
-### 简化的收发模型
-* 简化发送数据的模型:输出/写入: 
+### Linux中的网络收发模型
+* 发送数据的模型:输出/写入: 
+
+        A．	用户数据将被写入到socket（在发送之前进入传输缓冲中）；
+        B．	内核将用户数据封装为协议数据单元；
+        C．	协议数据单元将被放入设备的传输队列；
+        D．	驱动将队列中的协议数据单元从头开始拷贝到网卡；
+        E．	当数据发送的时候网卡将产生中断
     * Linux内部结构中一切皆为文件,除了网络设备以外,因此将数据写入到socket“文件”(进入传输缓冲), 对socket进行读就是接收,进行写就是发送;Kernel将数据封成为PDU;将PDU放在所期待网络设备的传 送队列中;每个网卡的驱动在收到PDU之后就会开始往队列中读取数据并按照队列顺序发送;
     * 在发送的地方能够调优的地方是将发送的buffer调到合适的值,让队列长度、实际带宽和延迟达到一定的最合适的比例。
+  
 * 简化接收数据的模型: 
+
+        A．	网卡接收到一个数据帧并使用DMA将其拷贝到接收缓冲中；
+        B．	网卡产生CPU中断；
+        C．	内核会对该中断进行处理并产生一个软中断；
+        D．	软中断会将数据包移动到IP层以部署合适的路由策略；
+        E．	如果数据是由本地传递，则：将数据解封装之后放入到socket的接收缓冲中；唤醒socket等待队列中的进程；进程会从socket的接收缓存中读取数据.
+    * 当内核通过调度softirq来处理中断的时候，有数据的设备将被加入到CPU的poll队列中。当kernel处理softirq的时候，所有的在poll队列中的设备将被处理，数据包会直接从ring buffer被传递到IP层。
     * 网卡收到一个帧,通过DMA拷贝到接收buffer中(即网卡直接将数据拷贝到内存中而不通过CPU);然后 网卡要求CPU产生一个的硬件中断,每个网络包都会进行一次硬件中断;当Kernel收到该消息处理中断并 调度一个softirq,因此一个计算机在不断接收包的过程中Kernel会不断进行softirq,即不断被硬件中断并 调度软件中断,这就是网络易受DOS攻击的原因之一;然后softirq会通过irqhandler将包交到ip的缓冲池 中,若包的目标是自己则直接接收,如果是别人则需要转发,之后激活socket并让socket读取数据。
     * 因此在此期间能调整的就是网络的recive buffer,即接收缓冲。 一般buffer就是队列长度,如果队列短则包可能丢,如果队列长可能延迟会大
 
@@ -96,52 +110,22 @@ net.ipv4.ipfrag_low_thresh		默认为192KiB
 * 写该文件的时候就是发送数据；读该文件的时候就是接收数据；如果关闭socket则该文件也被干掉。
 * 读写buffer中存储的应用程序数据，一般TCP协议中要求有25%的overhead供使用，因此buffer要做相应的调节。
 * TCP sockets
-    * TCP连接是使用“三路握手”来建立的。当客户端系统启动连接时，它会发送
-    一个带有SYN标志的服务器的数据包。此时，服务器将在
-    侦听队列并回送具有SYN和ACK标志集的答复，该集合指示服务器确认。
-    接收客户端初始包并希望与客户端建立连接。客户端完成
-    通过使用包含ACK标志的数据包来响应连接。一旦客户端响应，连接就会移动。
-    侦听队列进入连接队列。
-    在接收大量连接请求的高延迟网络上的系统中，有可能
-    由于客户端完成连接所需的时间，侦听队列可以变得完整。另一种可能
-    问题是拒绝服务攻击。攻击者可以用TCP连接包轰击服务器。
-    使用SYN标志集和伪源地址。这将导致服务器以等待方式填充侦听队列。
-    请求从未接收到其发送的SYN请求的ACK。最后，当然，连接将
-    时间到。
-    MSS是将被接受的段的最大大小。这通常是主机的本地MTU减去。
-    TCP/IP报头。例如：如果MTU为1500，MSS通常宣布为1460。与路径结合使用
-    MTU发现，这样可以避免碎片化。如果没有发送MSS，通常假设MSS＝536（主机上的RFC）。
-    要求“这是Internet连接的主机所能拥有的最小MSS。”
-    接收窗口大小是另一侧发送的未被攻击数据的最大量。每个ACK发送
-    更新有关当前窗口大小的信息。
-    TCP/IP说明，史蒂文斯第1卷是理解TCP和UDP操作的极好资源——必须读取。
-
-    TCP connections are established using a 'three-way handshake'. When a client system initiates a connection, it sends
-    a packet to the server with the SYN flag set. At this point, the server will make an entry for the connection in the
-    listen queue and send back a reply that has both the SYN and ACK flags set which indicates the server acknowledges
-    receiving the clients initial packet and wishes to establish a connection with the client. The client completes the
-    connection by responding with a packet containing an ACK flag. Once the client responds, the connection moves from
-    the listen queue into the connection queue.
-    On a system on a high-latency networks that receives a large number of connection requests, there is a possibility that
-    the listen queue can become full because of the time required for clients to complete the connection. Another possible
-    problem is that of a denial-of-service attack. An attacker could bombard the server with TCP connection packets
-    with the SYN flag set and a bogus source address. This will cause the server to fill up the listen queue with pending
-    requests that never receive an ACK for the SYN request that it sent out. Eventually, of course, the connections will
-    time out.
-    The MSS is the maximum size of a segment that will be accepted. This is usually the host's local MTU minus
-    TCP/IP headers. For example: if MTU is 1500, MSS announced is usually 1460. Used in conjunction with path
-    MTU discovery, this can avoid fragmentation. If a MSS is not sent, MSS=536 is usually assumed (RFC on "Host
-    Requirements" mandates this is the minimum MSS any Internet-connected host can have.)
-    The receive window size is the maximum amount of unACKed data the other side may transmit. Each ACK sent may
-    update information about current window size.
-    TCP/IP Illustrated, vol. 1 by Stevens is an excellent resource on understanding TCP and UDP operation -- a must read.
+    * TCP连接是使用“三路握手”来建立的。当客户端系统启动连接时，它会发送一个带有SYN标志的服务器的数据包。此时，服务器将在侦听队列并回送具有SYN和ACK标志集的答复，该集合指示服务器确认。
+    * 接收客户端初始包并希望与客户端建立连接。客户端完成通过使用包含ACK标志的数据包来响应连接。一旦客户端响应，连接就会移动。
+    * 侦听队列进入连接队列。
+    * 在接收大量连接请求的高延迟网络上的系统中，有可能由于客户端完成连接所需的时间，侦听队列可以变得完整。另一种可能问题是拒绝服务攻击。攻击者可以用TCP连接包轰击服务器，使用SYN标志集和伪源地址。这将导致服务器以等待方式填充侦听队列。
+    * 请求从未接收到其发送的SYN请求的ACK。最后，当然，连接将时间到。
+    * MSS是将被接受的段的最大大小。这通常是主机的本地MTU减去。
+    * TCP/IP报头。例如：如果MTU为1500，MSS通常宣布为1460。与路径结合使用MTU发现，这样可以避免碎片化。如果没有发送MSS，通常假设MSS＝536（主机上的RFC）。
+    * 要求“这是Internet连接的主机所能拥有的最小MSS。”
+    * 接收窗口大小是另一侧发送的未被攻击数据的最大量。每个ACK发送更新有关当前窗口大小的信息。
 
 * 在使用nmap扫描的时候，使用-t表示做三次握手的扫描，而-s表示隐式扫描，因为这种模式只扫描SYN。所以一般-s是一种黑客行为。
 * 查看socket
-    * netstat -tulpn		tTCP，pPID，
+    * netstat -tulpn
     • Active sockets
     sar -n SOCK
-    lsof -i				查看打开文件数
+    lsof -i				-->查看打开文件数
     netstat -tu
     • All sockets
     netstat -taupe
@@ -170,122 +154,45 @@ net.ipv4.tcp_keepalive_intvl = 75
 net.ipv4.tcp_keepalive_probes = 9
 发探测包的个数；
 
-### 实验待补全
+### 参考实验
 
 
 
 
 
 
-## 参考
-必要的网络性能调优：
-网络数据发送和接收的过程：
-发送：
-A．	用户数据将被写入到socket（在发送之前进入传输缓冲中）；
-B．	内核将用户数据封装为协议数据单元；
-C．	协议数据单元将被放入设备的传输队列；
-D．	驱动将队列中的协议数据单元从头开始拷贝到网卡；
-E．	当数据发送的时候网卡将产生中断
-
-我们通过ifconfig所看到的txqueuelen，即传输队列长度实际上就是该网卡上的队列长度。网卡上要传输的所有数据包都将按照队列原则或者进行排列发送。而默认的队列规则是pfifo_fast，这种排序原则将按照IP数据包的服务类型标志在bands中产生三个队列（0，1和2）。最低bands队列中的包会先被传输。所以命令tc –s qdisc show dev eth0可以用于查看eth0中的使用的排序规则是否会丢包。如果真的丢包，那么该队列就应该被加长。并且我们也可以通过命令tc qdisc del root dev eth0来重置排序规则。这样kernel会使用默认的排序规则。队列可以通过ifconfig或者ip命令来使得txqueuelen更长。
-但queue原则只在传输数据的接口上适用。
-（什么是binds？）
-（如果队列更长会产生什么负面影响？）
 
 
-接收：
-A．	网卡接收到一个数据帧并使用DMA将其拷贝到接收缓冲中；
-B．	网卡产生CPU中断；
-C．	内核会对该中断进行处理并产生一个软中断；
-D．	软中断会将数据包移动到IP层以部署合适的路由策略；
-E．	如果数据是由本地传递，则：将数据解封装之后放入到socket的接收缓冲中；唤醒socket等待队列中的进程；进程会从socket的接收缓存中读取数据
 
-针对接收数据的进程会有两个API。新的API在2.4内核中使用，并会延迟从DMA移动已经接收到数据的动作。而在旧的API下，数据会从接收缓冲中被拷贝到网卡的receive backlog，并需要额外的服务时间。这个backlog size将由net.core.netdev_max_backlog来进行控制。如果接收数据包的时候中断产生率很高，使用旧的API模式将很容易导致活锁，这样在backlog被填满或者缓冲填满的时候导致丢包。
 
-新的API将简化接收进程。当内核通过调度softirq来处理中断的时候，有数据的设备将被加入到CPU的poll队列中。当kernel处理softirq的时候，所有的在poll队列中的设备将被处理，数据包会直接从ring buffer被传递到IP层。
 
-网卡会对每一个数据包产生CPU的硬中断。
-中断处理会抢先于队列中进程的处理：
-在传输队列满的时候会丢弃数据包；在接收的socket ring buffer满的时候会丢弃数据包；在负载高的情况下会导致接收活锁。
-通过命令可以查看中断情况：cat /proc/interrupts
-通过命令可以查看软中断情况：ps axo pid,comm.,util | grep softirq
 
-在CPU出现starve的情况下会导致活锁。此时队列已经满了，但代码还是规律性地处理运行在低优先级上的队列而不是通过中断处理代码。因此CPU会用更多的时间来丢包而不是处理这些包。一般活锁只是产生在接收数据的进程上。
 
-中断会针对interrupt context处理而不是针对系统或者进程的context处理。这样就防止了某个给定的中断处理器在执行的时候如果顺序中断产生和执行时被占先。
 
-针对softirq，ksoftirqd是一个针对每个CPU都存在的内核线程，该线程会调度中断产生和处理的情况。并会使顺序软件中断按照进程context来执行，实际上是软件中断的合并。
-如果我们发现ksoftirqd已经消耗了一个比较小的百分比的CPU时间，这就说明系统处于一个比较重的软件中断压力下。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
  
-####参考实验
-实验一：了解网络性能：
-
-在试验机（监控机和被监控机）上安装NetPIPE包。
-这里我的监控机是10.66.129.162，而被监控机为10.66.129.21。
-
-在被监控机上运行NetPIPE，不加任何参数：
-[root@dhcp-129-21 ~]# NPtcp 
-Send and receive buffers are 16384 and 87380 bytes
-(A bug in Linux doubles the requested buffer sizes)
-
-
-在监控机上运行NetPIPE，指向被监控机：
-[root@dhcp-129-162 ~]# NPtcp -h 10.66.129.21
-Send and receive buffers are 16384 and 87380 bytes
-(A bug in Linux doubles the requested buffer sizes)
-Now starting the main loop
-  0:       1 bytes    670 times -->      0.12 Mbps in      63.85 usec
-  1:       2 bytes   1566 times -->      0.24 Mbps in      63.98 usec
-  2:       3 bytes   1562 times -->      0.36 Mbps in      64.40 usec
-  3:       4 bytes   1035 times -->      0.48 Mbps in      64.23 usec
-………………………………………
-120: 6291459 bytes      3 times -->    149.28 Mbps in  321543.35 usec
-121: 8388605 bytes      3 times -->    149.22 Mbps in  428894.68 usec
-122: 8388608 bytes      3 times -->    149.24 Mbps in  428831.17 usec
-123: 8388611 bytes      3 times -->    149.19 Mbps in  428989.33 usec
-
-当程序运行结束的时候，将在监控机上产生一个叫做np.out的文件。该文件包含了三行：
-[root@dhcp-129-162 ~]# cat np.out 
-       1 0.119498   0.00006385
-       2 0.238476   0.00006398
-       3 0.355399   0.00006440
-       4 0.475133   0.00006423
-…………………
-8388605 149.220728   0.42889468
- 8388608 149.242884   0.42883117
- 8388611 149.187912   0.42898933
-
-第一行：传输的字节数；
-第二行：传输率； 
-第三行：完成传输的时间；
-
-所以将完成传输的字节数绘图可以计算出传输率和带宽。
-
-还是老办法，使用gnuplot来绘图：
-gnuplot> set logscale x
-gnuplot> set xrange [1:1000000]
-gnuplot> set ylabel "bandwith - Mbps"
-gnuplot> set xlabel "message size - Bytes"
-gnuplot> plot 'np.out' using 1:2 with lines
-
-[root@dhcp-129-162 ~]# tail .gnuplot_history
-set logscale x
-set xrange [1:1000000]
-set ylabel "bandwith - Mbps"
-set xlabel "message size - Bytes"
-plot 'np.out' using 1:2 with lines
-quit
-
-将np.out拷贝并保存，以备后续进行benchmark的时候对比。
- 
-实验二：TCP的流控和BDP（Bandwidth delay product）:
-
+* TCP的流控和BDP（Bandwidth delay product）:
 在一个延迟比较高的网络上观测流动窗口如何实现自动控制，观察BDP以及调整buffer size和窗口大小对网络的影响。
 和上一个网络环境一样，需要两台机器。分别是192.168.0.60和192.168.0.80我们将在192.168.0.80上建立一个web服务器，并通过高延迟的网络下载该文件，观察性能；之后对网络调整之后再观察性能。
 
-首先在两台机器上都安装bdp-lab包：
-当两台机器上面都安装了bdp-lab包之后，会在两台机器上都建立一个通道设备：
-注意，安装这个包的需求是系统中有xen内核，并且系统网卡所在网段是192.168.0.0/24。总之设计不是很好。
 
 [root@kdc ~]# ifconfig 
 bdptun    Link encap:IPIP Tunnel  HWaddr   
