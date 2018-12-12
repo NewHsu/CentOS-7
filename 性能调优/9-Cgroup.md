@@ -47,7 +47,7 @@
         net_prio--允许管理员动态的通过各种应用程序设置网络传输的优先级，类似于socket 选项的SO_PRIORITY，但它有它自身的优势
         HugeTLB--HugeTLB页的资源控制功能
             ns 名称空间子系统。
-        perf_event 增加了对每group的监测跟踪的能力，即可以监测属于某个特定的group的所有线程以及             运行在特定CPU上的线程，此功能对于监测整个group非常有用，具体参见 http://lwn.net/Articles/421574/
+        perf_event 增加了对每group的监测跟踪的能力，即可以监测属于某个特定的group的所有线程以及运行在特定CPU上的线程，此功能对于监测整个group非常有用
 * 当然也用户可以自定义子系统并进行挂载
 
         cpuset:/
@@ -352,9 +352,7 @@ devices子系统是通过提供device whilelist 来实现的，devices子系统�
 	FROZEN：挂起进程 
       FREEZING：显示该值表示有些进程不能被frozen；当不能被挂起的进程从cgroup消失时，变成FROZEN，或者受到改为FROZEN或THAWED 
       THAWED ：恢复进程 
-net_cls
-perf_event
-hugetlb
-systemd
-总结
 
+## 总结
+* 其实我们常用过得就是对CPU和内存、以及磁盘进行限制，如果是需要对其他的进行限制和隔离，那么拜读一下man手册，将是你最好的选择。
+* freezer是很有用的技能，当一个应用进程出现问题，而又不能直接kill还需要找问题的情况下，可以使用freezer冻结，然后排查，因为很多问题只有在发病的时候，我们才能进行诊断，就是进医院一样，你不告诉医生哪里有问题，医生也不知道怎么对你处理。
